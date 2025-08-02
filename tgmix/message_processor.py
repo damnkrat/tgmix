@@ -206,30 +206,34 @@ def combine_reactions(next_msg_data, parsed_message, id_to_author_map):
         # Check if this reaction already exists in our list
         existing_reaction = None
         for reaction in parsed_message["reactions"]:
-            shape_key = (  # What is there is more same reactions?
-                "emoji" if reaction['type'] == "emoji" else "custom_emoji")
-            if reaction.get(shape_key) == next_shape_value:
-                existing_reaction = reaction
-                break
+            # What is there is more same reactions?
+            if reaction.get(reaction['type']) != next_shape_value:
+                continue
+
+            existing_reaction = (
+                reaction if reaction['type'] != "paid" else "⭐️")
+            break
 
         if existing_reaction:
             existing_reaction["count"] += next_reactions.get("count", 0)
-            existing_reaction["recent"].extend(minimise_reactions(
-                next_msg_data, next_reactions, id_to_author_map))
+            existing_reaction["recent"].extend(minimise_recent_reactions(
+                next_reactions, id_to_author_map))
             return
 
         parsed_message["reactions"].append({
             "type": next_reactions["type"],
             "count": next_reactions["count"],
             next_reactions['type']: next_shape_value,
-            "recent": minimise_reactions(
-                next_msg_data, next_reactions, id_to_author_map)
         })
 
+        if last_reaction := next_msg_data["reactions"][-1].get("recent"):
+            last_reaction["recent"] = minimise_recent_reactions(
+                next_reactions, id_to_author_map)
 
-def minimise_reactions(message, reaction, id_to_author_map) -> list[dict]:
+
+def minimise_recent_reactions(reactions, id_to_author_map) -> list[dict]:
     recent = []
-    for reaction in reaction["recent"]:
+    for reaction in reactions["recent"]:
         if author_id := id_to_author_map.get(reaction["from_id"]):
             recent.append({
                 "author_id": author_id,
@@ -271,15 +275,18 @@ def parse_message_data(config: dict, media_dir: Path,
     if "reactions" in message:
         parsed_message["reactions"] = []
         for reaction in message["reactions"]:
-            shape_value = reaction.get("emoji") or reaction.get("document_id")
+            shape_value = reaction.get("emoji") or reaction.get(
+                "document_id") or "⭐️"
 
             parsed_message["reactions"].append({
                 "type": reaction["type"],
                 "count": reaction["count"],
-                reaction['type']: shape_value,
-                "recent":
-                    minimise_reactions(message, reaction, id_to_author_map)
+                reaction['type']: shape_value
             })
+
+            if last_reaction := reaction.get("recent"):
+                last_reaction["recent"] = minimise_recent_reactions(
+                    reaction, id_to_author_map)
 
     return parsed_message
 

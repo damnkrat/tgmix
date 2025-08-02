@@ -37,6 +37,7 @@ def convert_to_video_with_filename(
         print(f"\n[!] FFmpeg error while processing file {input_path.name}")
         return False
 
+
 def copy_media_file(source_path: Path, output_path: Path):
     """Simply copies a file if it exists."""
     if (source_path.name ==
