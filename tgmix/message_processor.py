@@ -84,7 +84,12 @@ def process_media(msg: dict, base_dir: Path, media_dir: Path,
     # else:
     copy_media_file(source_path, prepared_path)
 
-    return {"type": media_type, "source_file": msg[media_type]}
+    filename = msg[media_type]
+    if filename == ("(File not included. "
+                    "Change data exporting settings to download.)"):
+        filename = "B"
+
+    return {"type": media_type, "source_file": filename}
 
 
 def handle_init(package_dir):
@@ -255,8 +260,8 @@ def parse_message_data(config: dict, media_dir: Path,
                        id_to_author_map: dict):
     """Parses a single message using the author map."""
     parsed_message = {
-        "message_id": message["id"],
-        "timestamp": message["date"],
+        "id": message["id"],
+        "time": message["date"],
         "author_id": id_to_author_map.get(message.get("from_id")),
         "content": {}
     }
@@ -280,6 +285,21 @@ def parse_message_data(config: dict, media_dir: Path,
             "closed": message["poll"]["closed"],
             "answers": message["poll"]["answers"],
         }
+    if "inline_bot_buttons" in message:
+        for button_group in message["inline_bot_buttons"]:
+            for button in button_group:
+                parsed_message["inline_buttons"] = []
+
+                if button["type"] == "callback":
+                    parsed_message["inline_buttons"].append(button)
+                elif button["type"] == "auth":
+                    parsed_message["inline_buttons"].append(
+                        {
+                            "type": "auth",
+                            "text": "Открыть комментарии",
+                            "data": button["data"],
+                        }
+                    )
     if "reactions" in message:
         parsed_message["reactions"] = []
         for reaction in message["reactions"]:

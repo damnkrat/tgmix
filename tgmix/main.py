@@ -37,7 +37,8 @@ def load_config(target_dir: Path) -> dict:
         raise e
 
 
-def create_summary_block(is_transcribed: bool = False) -> dict:
+def create_summary_block(is_transcribed: bool = False,
+                         has_large_files: bool = False) -> dict:
     """Creates an informational block for the AI model."""
     if is_transcribed:
         special_media_handling = ("Voice messages (.ogg) and video messages "
@@ -49,7 +50,7 @@ def create_summary_block(is_transcribed: bool = False) -> dict:
             " the original audio is kept"
         )
 
-    return {
+    summary_block = {
         "tgmix_summary": {
             "purpose":
                 "This file contains a structured representation of a "
@@ -68,10 +69,19 @@ def create_summary_block(is_transcribed: bool = False) -> dict:
                     "message refers to an author using a compact `author_id` "
                     "(e.g. 'U1'). Use this map to resolve the author's full "
                     "name. In your responses, always use the full name",
-                "special_media_handling": special_media_handling
+                "special_media_handling": special_media_handling,
             }
         }
     }
+
+    if has_large_files:
+        summary_block["tgmix_summary"]["usage_guidelines"][
+            "large_media_handling"] = (
+            "Large files are skipped, and their `source_file` "
+            "is marked as 'B'. The size limit is user-configurable."
+        )
+
+    return summary_block
 
 
 def run_processing(target_dir: Path):
@@ -97,11 +107,14 @@ def run_processing(target_dir: Path):
         data["messages"], target_dir, media_dir, config
     )
 
-    # Fix reply IDs
     fix_reply_ids(stitched_messages, id_alias_map)
 
     # Format and save the final result
-    processed_chat = create_summary_block()
+    processed_chat = create_summary_block(
+        False,
+        "(File not included. "
+        "Change data exporting settings to download.)" in str(data)
+    )
     processed_chat["chat_name"] = data.get("name")
     processed_chat["author_map"] = author_map
     processed_chat["messages"] = stitched_messages
