@@ -113,15 +113,15 @@ def stitch_messages(source_messages, target_dir, media_dir, config):
     id_to_author_map = {}
     author_counter = 1
 
-    for msg in source_messages:
-        author_id = msg.get("from_id")
+    for message in source_messages:
+        author_id = message.get("from_id")
         if not author_id or author_id in id_to_author_map:
             continue
 
         compact_id = f"U{author_counter}"
         id_to_author_map[author_id] = compact_id
         author_map[compact_id] = {
-            "name": msg.get("from"),
+            "name": message.get("from"),
             "id": author_id
         }
         author_counter += 1
@@ -272,6 +272,14 @@ def parse_message_data(config: dict, media_dir: Path,
         parsed_message["forwarded_from"] = message["forwarded_from"]
     if "edited" in message:
         parsed_message["edited_time"] = message["edited"]
+    if "author" in message:
+        parsed_message["post_author"] = message["author"]
+    if "poll" in message:
+        parsed_message["poll"] = {
+            "question": message["poll"]["question"],
+            "closed": message["poll"]["closed"],
+            "answers": message["poll"]["answers"],
+        }
     if "reactions" in message:
         parsed_message["reactions"] = []
         for reaction in message["reactions"]:
@@ -284,8 +292,9 @@ def parse_message_data(config: dict, media_dir: Path,
                 reaction['type']: shape_value
             })
 
-            if last_reaction := reaction.get("recent"):
-                last_reaction["recent"] = minimise_recent_reactions(
+            if reaction.get("recent"):
+                parsed_message["reactions"][-1][
+                    "recent"] = minimise_recent_reactions(
                     reaction, id_to_author_map)
 
     return parsed_message
