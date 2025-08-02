@@ -1,0 +1,6 @@
+{
+  "export_json_file": "result.json",
+  "media_output_dir": "tgmix_media",
+  "final_output_json": "tgmix_output.json",
+  "ffmpeg_drawtext_settings": "fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf:x=(w-text_w)/2:y=(h-text_h)/2:fontcolor=white:fontsize=24:box=1:boxcolor=black@0.5:boxborderw=5"
+}

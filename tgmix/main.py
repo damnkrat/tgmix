@@ -1,0 +1,150 @@
+# tgmix/main.py
+import argparse
+import json
+import shutil
+from pathlib import Path
+
+from tgmix.message_processor import fix_reply_ids, handle_init, stitch_messages
+
+PACKAGE_DIR = Path(__file__).parent.resolve()
+
+
+def load_config(target_dir: Path) -> dict:
+    """
+    Loads the configuration.
+    Priority:
+    1. tgmix_config.json in the target directory.
+    2. Built-in config.json from the package (default).
+    """
+    local_config_path = target_dir / "tgmix_config.json"
+    default_config_path = PACKAGE_DIR / "config.json"
+
+    # First, try to load the local config if it exists
+    if local_config_path.exists():
+        try:
+            print("[*] Local tgmix_config.json found. Using its settings.")
+            return json.loads(open(local_config_path, encoding='utf-8').read())
+        except json.JSONDecodeError as e:
+            print(f"[!] Error: Invalid JSON format in {local_config_path}'.")
+            raise e
+
+    # If no local config, load the built-in one
+    try:
+        return json.loads(open(default_config_path, encoding='utf-8').read())
+    except FileNotFoundError as e:
+        print("[!] Critical Error: "
+              "Built-in config.json not found in the package.")
+        raise e
+
+
+def create_summary_block(is_transcribed: bool = False) -> dict:
+    """Creates an informational block for the AI model."""
+    if is_transcribed:
+        special_media_handling = ("Voice messages (.ogg) and video messages "
+                                  "are transcribed to text")
+    else:
+        special_media_handling = (
+            "Voice messages (.ogg) and video messages "
+            "are wrapped in .mp4 files. The frame shows the original filename;"
+            " the original audio is kept"
+        )
+
+    return {
+        "tgmix_summary": {
+            "purpose":
+                "This file contains a structured representation of a "
+                "Telegram chat export, prepared for AI analysis by TGMix",
+            "format_description":
+                "JSON object containing chat metadata and a list of messages. "
+                "Each message uses an `author_id` to "
+                "reference an author in the map, timestamp, Markdown text, "
+                "and media data",
+            "usage_guidelines": {
+                "main_principle":
+                    "Process this JSON together with any attached media "
+                    "when such media exists.",
+                "author_references":
+                    "Authors are listed in the top-level `author_map`. Each "
+                    "message refers to an author using a compact `author_id` "
+                    "(e.g. 'U1'). Use this map to resolve the author's full "
+                    "name. In your responses, always use the full name",
+                "special_media_handling": special_media_handling
+            }
+        }
+    }
+
+
+def run_processing(target_dir: Path):
+    """Main processing logic for the export."""
+    config = load_config(target_dir)
+
+    export_json_path = target_dir / config['export_json_file']
+    if not export_json_path.exists():
+        print(f"[!] Error: '{config['export_json_file']}' not found"
+              f" in {target_dir}")
+        return
+
+    media_dir = target_dir / config['media_output_dir']
+    if media_dir.exists():
+        print(f"[*] Cleaning up '{config['media_output_dir']}'...")
+        shutil.rmtree(media_dir)
+
+    media_dir.mkdir(exist_ok=True)
+    data = json.loads(open(export_json_path, encoding="utf-8").read())
+
+    # Stitch messages together
+    stitched_messages, id_alias_map, author_map = stitch_messages(
+        data["messages"], target_dir, media_dir, config
+    )
+
+    # Fix reply IDs
+    fix_reply_ids(stitched_messages, id_alias_map)
+
+    # Format and save the final result
+    processed_chat = create_summary_block()
+    processed_chat["chat_name"] = data.get("name")
+    processed_chat["author_map"] = author_map
+    processed_chat["messages"] = stitched_messages
+
+    output_path = target_dir / config['final_output_json']
+    with open(output_path, "w", encoding="utf-8") as file:
+        json.dump(processed_chat, file, ensure_ascii=False, indent=2)
+
+    print(f"\n--- Processing complete! Result saved to {output_path} ---")
+
+
+def main():
+    """Main entry point for the CLI application."""
+    parser = argparse.ArgumentParser(
+        description="Process a Telegram chat export for AI analysis.",
+        formatter_class=argparse.RawTextHelpFormatter
+    )
+    parser.add_argument(
+        "path",
+        nargs="?",
+        default=None,
+        help="Path to the directory with the Telegram export.\n"
+             "If not provided, processes the current directory."
+    )
+    parser.add_argument(
+        "--init",
+        action="store_true",
+        help="Create a default 'tgmix_config.json' in the current directory."
+    )
+    args = parser.parse_args()
+
+    if args.init:
+        handle_init(PACKAGE_DIR)
+        return
+
+    if args.path:
+        target_directory = Path(args.path).resolve()
+    else:
+        target_directory = Path.cwd()
+
+    print(f"--- Starting TGMix on directory: {target_directory} ---")
+    run_processing(target_directory)
+
+
+if __name__ == "__main__":
+    main()
