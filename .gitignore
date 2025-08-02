@@ -1,0 +1,36 @@
+# Default ignored files
+/shelf/
+/workspace.xml
+# Editor-based HTTP Client requests
+/httpRequests/
+# Datasource local storage ignored files
+/dataSources/
+/dataSources.local.xml
+# Zeppelin ignored files
+/ZeppelinRemoteNotebooks/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtualenv
+.venv/
+venv/
+env/
+
+# IDE & Editor
+.idea/
+.vscode/
+
+# Package manager
+uv.lock
+
+# TGMix output
+tgmix_media/
+tgmix_output.json
+tgmix_config.json
+
+# Repomix
+repomix-output.xml
