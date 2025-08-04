@@ -226,9 +226,7 @@ def combine_reactions(next_message, parsed_message, id_to_author_map):
             return
 
         parsed_message["reactions"].append({
-            "type": next_reactions["type"],
-            "count": next_reactions["count"],
-            next_reactions['type']: next_shape_value,
+            next_shape_value: next_reactions["count"]
         })
 
         if last_reaction := next_message["reactions"][-1].get("recent"):
@@ -307,9 +305,7 @@ def parse_message_data(config: dict, media_dir: Path,
                 "document_id") or "⭐️"
 
             parsed_message["reactions"].append({
-                "type": reaction["type"],
-                "count": reaction["count"],
-                reaction['type']: shape_value
+                shape_value: reaction["count"]
             })
 
             if reaction.get("recent"):

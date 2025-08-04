@@ -19,7 +19,7 @@ TGMix is a powerful tool that processes your Telegram chat export into a AI-frie
 
 The development of TGMix is planned in stages. Here is what's available now and what to expect in the future.
 
-#### v0.1.0 (Current Version)
+#### Current Version
 
 -   [x] **Significant Token Reduction**: By simplifying the structure and removing redundant metadata from the original Telegram export, TGMix **reduces the final token count by up to 3 times**.
 -   [x] **Message Stitching**: Automatically combines messages sent by the same user in quick succession into a single, coherent entry.
@@ -29,7 +29,7 @@ The development of TGMix is planned in stages. Here is what's available now and 
 #### Planned for Future Releases
 
 -   [ ] **Advanced Media Processing**: Optional conversion of voice/video messages and automatic transcription into text.
--   [ ] **Improvements for multimodal LLMs**: Optional inclusion of filenames for better context understanding.
+-   [ ] **Improvements for multimodal LLMs**: Optional inclusion of filenames in media for better context understanding via [MarkMyMedia-LLM](https://github.com/LaVashikk/MarkMyMedia-LLM).
 -   [ ] **Official Package Manager Support**: Easy installation via PyPI and AUR.
 
 ## Requirements

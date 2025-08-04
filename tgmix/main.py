@@ -70,6 +70,7 @@ def create_summary_block(is_transcribed: bool = False,
                     "(e.g. 'U1'). Use this map to resolve the author's full "
                     "name. In your responses, always use the full name",
                 "special_media_handling": special_media_handling,
+                "paid_reactions": "⭐️ cost around $0.02",
             }
         }
     }
