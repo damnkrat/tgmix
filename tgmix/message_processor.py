@@ -277,6 +277,8 @@ def parse_message_data(config: dict, media_dir: Path,
         parsed_message["edited_time"] = message["edited"]
     if "author" in message:
         parsed_message["post_author"] = message["author"]
+    if "paid_stars_amount" in message:
+        parsed_message["media_unlock_stars"] = message["paid_stars_amount"]
     if "poll" in message:
         parsed_message["poll"] = {
             "question": message["poll"]["question"],
