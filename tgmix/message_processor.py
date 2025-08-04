@@ -112,7 +112,7 @@ def handle_init(package_dir):
 def stitch_messages(source_messages, target_dir, media_dir, config):
     """
     Step 1: Iterates through messages, gathers "raw" parts,
-    and then parses them once. Returns processed messages and maps.
+    and then parses them at once. Returns processed messages and maps.
     """
     author_map = {}
     id_to_author_map = {}
@@ -159,7 +159,7 @@ def stitch_messages(source_messages, target_dir, media_dir, config):
 
 
 def combine_messages(config, id_alias_map, media_dir, message, message_id,
-                     parsed_msg, pbar, source_messages, target_dir,
+                     parsed_message, pbar, source_messages, target_dir,
                      id_to_author_map):
     next_id = message_id + 1
     while (next_id < len(source_messages) and
@@ -177,15 +177,15 @@ def combine_messages(config, id_alias_map, media_dir, message, message_id,
         next_text = format_text_entities_to_markdown(
             next_msg_data.get("text"))
         if next_text:
-            parsed_msg["content"]["text"] += f"\n\n{next_text}"
+            parsed_message["content"]["text"] += f"\n\n{next_text}"
 
-        if ("media" not in parsed_msg["content"]
-                or not parsed_msg["content"].get("media")):
+        if ("media" not in parsed_message["content"]
+                or not parsed_message["content"].get("media")):
             if media := process_media(
                     next_msg_data, target_dir, media_dir, config):
-                parsed_msg["content"]["media"] = media
+                parsed_message["content"]["media"] = media
 
-        combine_reactions(next_msg_data, parsed_msg, id_to_author_map)
+        combine_reactions(next_msg_data, parsed_message, id_to_author_map)
 
         id_alias_map[next_msg_data["id"]] = message["id"]
         next_id += 1
@@ -193,18 +193,18 @@ def combine_messages(config, id_alias_map, media_dir, message, message_id,
     return next_id
 
 
-def combine_reactions(next_msg_data, parsed_message, id_to_author_map):
+def combine_reactions(next_message, parsed_message, id_to_author_map):
     """
     Merges raw reactions from next_msg_data with already processed
     reactions in parsed_message, applying minimization.
     """
-    if "reactions" not in next_msg_data:
+    if "reactions" not in next_message:
         return
 
     if "reactions" not in parsed_message:
         parsed_message["reactions"] = []
 
-    for next_reactions in next_msg_data["reactions"]:
+    for next_reactions in next_message["reactions"]:
         next_shape_value = next_reactions.get("emoji") or next_reactions.get(
             "document_id")
 
@@ -231,7 +231,7 @@ def combine_reactions(next_msg_data, parsed_message, id_to_author_map):
             next_reactions['type']: next_shape_value,
         })
 
-        if last_reaction := next_msg_data["reactions"][-1].get("recent"):
+        if last_reaction := next_message["reactions"][-1].get("recent"):
             last_reaction["recent"] = minimise_recent_reactions(
                 next_reactions, id_to_author_map)
 

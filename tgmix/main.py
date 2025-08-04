@@ -100,11 +100,11 @@ def run_processing(target_dir: Path):
         shutil.rmtree(media_dir)
 
     media_dir.mkdir(exist_ok=True)
-    data = json.loads(open(export_json_path, encoding="utf-8").read())
+    raw_messages = json.loads(open(export_json_path, encoding="utf-8").read())
 
     # Stitch messages together
     stitched_messages, id_alias_map, author_map = stitch_messages(
-        data["messages"], target_dir, media_dir, config
+        raw_messages["messages"], target_dir, media_dir, config
     )
 
     fix_reply_ids(stitched_messages, id_alias_map)
@@ -113,9 +113,9 @@ def run_processing(target_dir: Path):
     processed_chat = create_summary_block(
         False,
         "(File not included. "
-        "Change data exporting settings to download.)" in str(data)
+        "Change data exporting settings to download.)" in str(raw_messages)
     )
-    processed_chat["chat_name"] = data.get("name")
+    processed_chat["chat_name"] = raw_messages.get("name")
     processed_chat["author_map"] = author_map
     processed_chat["messages"] = stitched_messages
 
