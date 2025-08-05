@@ -148,7 +148,6 @@ def stitch_messages(source_messages, target_dir, media_dir, config):
     pbar = tqdm(source_messages, desc="Step 1/2: Stitching messages")
     while next_id < len(source_messages):
         next_message = source_messages[next_id]
-        print(f"{next_id=} {next_message["text"]=}")
         pbar.update()
 
         if next_message.get("type") != "message":
