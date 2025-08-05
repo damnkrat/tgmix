@@ -39,14 +39,14 @@ The development of TGMix is planned in stages. Here is what's available now and 
 
 ## Installation
 
-#### From GitHub (Current method)
+#### From GitHub (For development)
 1.  Ensure FFmpeg is installed. Verify by running `ffmpeg -version` in your terminal.
 2.  Install `tgmix` directly from this repository:
     ```bash
     pip install git+https://github.com/damnkrat/tgmix.git
     ```
 
-#### Via PyPI (soon)
+#### Via PyPI (Current method)
 ```bash
 pip install tgmix
 ```
