@@ -195,6 +195,7 @@ def combine_messages(config, id_alias_map, media_dir, message, message_id,
                     parsed_message["content"]["media"]]
             elif not parsed_message["content"].get("media"):
                 parsed_message["content"]["media"] = []
+
             parsed_message["content"]["media"].append(media["source_file"])
 
         combine_reactions(next_message, parsed_message, id_to_author_map)
