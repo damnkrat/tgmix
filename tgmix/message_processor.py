@@ -7,6 +7,18 @@ from tqdm import tqdm
 from tgmix.media_processor import (convert_to_video_with_filename,
                                    copy_media_file)
 
+MEDIA_KEYS = [
+    "photo", "video_file", "voice_message",
+    "video_message", "sticker", "file"
+]
+
+
+def detect_media(message: dict) -> str:
+    for key in MEDIA_KEYS:
+        if key in message:
+            return key
+    return ""
+
 
 def format_text_entities_to_markdown(entities: list) -> str:
     """
@@ -61,11 +73,7 @@ def process_media(msg: dict, base_dir: Path, media_dir: Path,
     Detects media in a message, processes it, and returns
     structured information. (beta)
     """
-    media_keys = [
-        "photo", "video_file", "voice_message",
-        "video_message", "sticker", "file"
-    ]
-    media_type = next((key for key in media_keys if key in msg), None)
+    media_type = next((key for key in MEDIA_KEYS if key in msg), None)
 
     if not media_type:
         return None
@@ -85,7 +93,9 @@ def process_media(msg: dict, base_dir: Path, media_dir: Path,
     copy_media_file(source_path, prepared_path)
 
     filename = msg[media_type]
-    if filename == ("(File not included. "
+    if filename in ("(File not included. "
+                    "Change data exporting settings to download.)",
+                    "(File exceeds maximum size. "
                     "Change data exporting settings to download.)"):
         filename = "B"
 
@@ -118,15 +128,15 @@ def stitch_messages(source_messages, target_dir, media_dir, config):
     id_to_author_map = {}
     author_counter = 1
 
-    for message in source_messages:
-        author_id = message.get("from_id")
+    for next_message in source_messages:
+        author_id = next_message.get("from_id")
         if not author_id or author_id in id_to_author_map:
             continue
 
         compact_id = f"U{author_counter}"
         id_to_author_map[author_id] = compact_id
         author_map[compact_id] = {
-            "name": message.get("from"),
+            "name": next_message.get("from"),
             "id": author_id
         }
         author_counter += 1
@@ -134,25 +144,25 @@ def stitch_messages(source_messages, target_dir, media_dir, config):
     stitched_messages = []
     id_alias_map = {}
 
-    message_id = 0
+    next_id = 0
     pbar = tqdm(source_messages, desc="Step 1/2: Stitching messages")
-    while message_id < len(source_messages):
-        message = source_messages[message_id]
+    while next_id < len(source_messages):
+        next_message = source_messages[next_id]
+        print(f"{next_id=} {next_message["text"]=}")
         pbar.update()
 
-        if message.get("type") != "message":
-            message_id += 1
+        if next_message.get("type") != "message":
+            next_id += 1
             continue
 
-        parsed_msg = parse_message_data(config, media_dir, message,
+        parsed_msg = parse_message_data(config, media_dir, next_message,
                                         target_dir, id_to_author_map)
 
         next_id = combine_messages(
-            config, id_alias_map, media_dir, message, message_id,
+            config, id_alias_map, media_dir, next_message, next_id,
             parsed_msg, pbar, source_messages, target_dir, id_to_author_map
         )
         stitched_messages.append(parsed_msg)
-        message_id = next_id
 
     pbar.close()
     return stitched_messages, id_alias_map, author_map
@@ -162,33 +172,37 @@ def combine_messages(config, id_alias_map, media_dir, message, message_id,
                      parsed_message, pbar, source_messages, target_dir,
                      id_to_author_map):
     next_id = message_id + 1
-    while (next_id < len(source_messages) and
-           source_messages[next_id].get(
-               "from_id") == message.get("from_id") and
-           source_messages[next_id].get(
-               "date_unixtime") == message.get("date_unixtime") and
-           source_messages[next_id].get(
-               "forwarded_from") == message.get("forwarded_from") and
-           source_messages[next_id].get("text") and message.get("text")):
+    if not len(source_messages) > next_id:
+        return next_id
 
+    next_message = source_messages[next_id]
+    while (next_id < len(source_messages) and
+           next_message.get("from_id") == message.get("from_id") and
+           next_message.get("forwarded_from") == message.get(
+                "forwarded_from") and next_message.get(
+                "date_unixtime") == message.get("date_unixtime") and (
+                   next_message.get("text") and message.get("text") or (
+                   parsed_message["content"].get("media") and detect_media(next_message)))):
         pbar.update()
-        next_msg_data = source_messages[next_id]
 
         next_text = format_text_entities_to_markdown(
-            next_msg_data.get("text"))
+            next_message.get("text"))
         if next_text:
             parsed_message["content"]["text"] += f"\n\n{next_text}"
 
-        if ("media" not in parsed_message["content"]
-                or not parsed_message["content"].get("media")):
-            if media := process_media(
-                    next_msg_data, target_dir, media_dir, config):
-                parsed_message["content"]["media"] = media
+        if media := process_media(next_message, target_dir, media_dir, config):
+            if isinstance(parsed_message["content"].get("media"), str):
+                parsed_message["content"]["media"] = [
+                    parsed_message["content"]["media"]]
+            elif not parsed_message["content"].get("media"):
+                parsed_message["content"]["media"] = []
+            parsed_message["content"]["media"].append(media["source_file"])
 
-        combine_reactions(next_msg_data, parsed_message, id_to_author_map)
+        combine_reactions(next_message, parsed_message, id_to_author_map)
 
-        id_alias_map[next_msg_data["id"]] = message["id"]
+        id_alias_map[next_message["id"]] = message["id"]
         next_id += 1
+        next_message = source_messages[next_id]
 
     return next_id
 
@@ -205,14 +219,14 @@ def combine_reactions(next_message, parsed_message, id_to_author_map):
         parsed_message["reactions"] = []
 
     for next_reactions in next_message["reactions"]:
-        next_shape_value = next_reactions.get("emoji") or next_reactions.get(
+        next_reaction = next_reactions.get("emoji") or next_reactions.get(
             "document_id")
 
         # Check if this reaction already exists in our list
         existing_reaction = None
-        for reaction in parsed_message["reactions"]:
+        for reaction, _ in list(parsed_message["reactions"][0].items()):
             # What is there is more same reactions?
-            if reaction.get(reaction['type']) != next_shape_value:
+            if reaction != next_reaction:
                 continue
 
             existing_reaction = (
@@ -226,7 +240,7 @@ def combine_reactions(next_message, parsed_message, id_to_author_map):
             return
 
         parsed_message["reactions"].append({
-            next_shape_value: next_reactions["count"]
+            next_reaction: next_reactions["count"]
         })
 
         if last_reaction := next_message["reactions"][-1].get("recent"):
@@ -270,7 +284,7 @@ def parse_message_data(config: dict, media_dir: Path,
     if "reply_to_message_id" in message:
         parsed_message["reply_to_message_id"] = message["reply_to_message_id"]
     if media := process_media(message, target_dir, media_dir, config):
-        parsed_message["content"]["media"] = media
+        parsed_message["content"]["media"] = media["source_file"]
     if "forwarded_from" in message:
         parsed_message["forwarded_from"] = message["forwarded_from"]
     if "edited" in message:
