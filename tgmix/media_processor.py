@@ -23,20 +23,22 @@ def process_media(msg: dict, base_dir: Path, media_dir: Path,
 
     prepared_path = media_dir / output_filename
 
-    # Decide how to process the file. Halted for next updates
-    # if media_type in ["voice_message", "video_message"]:
-    #     convert_to_video_with_filename(
-    #         source_path, prepared_path, config['ffmpeg_drawtext_settings']
-    #     )
-    # else:
-    copy_media_file(source_path, prepared_path)
-
     filename = msg[media_type]
     if filename in ("(File not included. "
                     "Change data exporting settings to download.)",
                     "(File exceeds maximum size. "
-                    "Change data exporting settings to download.)"):
+                    "Change data exporting settings to download.)",
+                    "(File unavailable, please try again later)"):
         filename = "B"
+    else:
+        # Decide how to process the file. Halted for next updates
+        # if media_type in ["voice_message", "video_message"]:
+        #     convert_to_video_with_filename(
+        #         source_path, prepared_path,
+        #         config['ffmpeg_drawtext_settings']
+        #     )
+        # else:
+        copy_media_file(source_path, prepared_path)
 
     return {"type": media_type, "source_file": filename}
 
@@ -78,11 +80,6 @@ def convert_to_video_with_filename(
 
 def copy_media_file(source_path: Path, output_path: Path):
     """Simply copies a file if it exists."""
-    if (source_path.name ==
-            "(File exceeds maximum size. "
-            "Change data exporting settings to download.)"):
-        print(f"[i] Skipped a file that was not downloaded.")
-        return
     if not source_path.exists():
         print(f"[!] Skipped (not found): {source_path}")
         return

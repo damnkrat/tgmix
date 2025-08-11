@@ -112,6 +112,12 @@ def stitch_messages(source_messages, target_dir, media_dir, config):
         pbar.update()
 
         if next_message.get("type") != "message":
+            if next_message.get("type") != "service":
+                next_id += 1
+                continue
+
+            stitched_messages.append(
+                parse_service_message(id_to_author_map, next_message))
             next_id += 1
             continue
 
@@ -154,6 +160,7 @@ def combine_messages(config, id_alias_map, media_dir, message, message_id,
     next_message = source_messages[next_id]
     while (check_attributes(message, next_message,
                             ("from_id", "forwarded_from", "date_unixtime"))
+           and (not check_attributes(message, next_message, has=("type",)))
            and ((check_attributes(message, next_message, has=("text",))
                  or (parsed_message["content"].get("media")
                and detect_media(next_message))))):
@@ -251,7 +258,7 @@ def minimise_recent_reactions(reactions, id_to_author_map) -> list[dict]:
 
 def parse_message_data(config: dict, media_dir: Path,
                        message: dict, target_dir: Path,
-                       id_to_author_map: dict):
+                       id_to_author_map: dict) -> dict:
     """Parses a single message using the author map."""
     parsed_message = {
         "id": message["id"],
@@ -312,6 +319,59 @@ def parse_message_data(config: dict, media_dir: Path,
                     reaction, id_to_author_map)
 
     return parsed_message
+
+
+def parse_service_message(id_to_author_map: dict, message: dict) -> dict:
+    action_from = id_to_author_map.get(message.get("actor_id"))
+
+    match message.get("action"):
+        case "phone_call":
+            data = {
+                "id": message["id"],
+                "type": "phone_call",
+                "time": message["date"],
+                "from": action_from,
+                "discard_reason": message["discard_reason"],
+            }
+
+            if "duration_seconds" in message:
+                data["duration"] = message["duration_seconds"]
+            return data
+        case "invite_to_group_call":
+            return {
+                "id": message["id"],
+                "type": "invite_to_group_call",
+                "time": message["date"],
+                "from": action_from,
+                "members": message["members"],
+            }
+        case "pin_message":
+            return {
+                "id": message["id"],
+                "type": "pin_message",
+                "time": message["date"],
+                "from": action_from,
+                "message_id": message["message_id"],
+            }
+        case "send_star_gift":
+            data = {
+                "id": message["id"],
+                "type": "send_star_gift",
+                "time": message["date"],
+                "from": action_from,
+                "gift_id": message["gift_id"],
+                "stars": message["stars"],
+                "is_limited": message["is_limited"],
+                "is_anonymous": message["is_anonymous"],
+            }
+
+            if message.get("gift_text"):
+                data["text"] = message["gift_text"]
+            return data
+
+    print(f"[!] Unhandled service message({message["id"]}): "
+          f"{message["action"]}")
+    return message
 
 
 def fix_reply_ids(messages, alias_map):
