@@ -4,13 +4,8 @@ from pathlib import Path
 
 from tqdm import tqdm
 
-from tgmix.media_processor import (convert_to_video_with_filename,
-                                   copy_media_file)
-
-MEDIA_KEYS = [
-    "photo", "video_file", "voice_message",
-    "video_message", "sticker", "file"
-]
+from tgmix.media_processor import process_media
+from tgmix.consts import MEDIA_KEYS
 
 
 def detect_media(message: dict) -> str:
@@ -67,41 +62,6 @@ def format_text_entities_to_markdown(entities: list) -> str:
     return "".join(markdown_parts)
 
 
-def process_media(msg: dict, base_dir: Path, media_dir: Path,
-                  config: dict) -> dict | None:
-    """
-    Detects media in a message, processes it, and returns
-    structured information. (beta)
-    """
-    media_type = next((key for key in MEDIA_KEYS if key in msg), None)
-
-    if not media_type:
-        return None
-
-    source_path = base_dir / msg[media_type]
-    output_filename = source_path.with_suffix(
-        ".mp4").name if media_type == "voice_message" else source_path.name
-
-    prepared_path = media_dir / output_filename
-
-    # Decide how to process the file. Halted for next updates
-    # if media_type in ["voice_message", "video_message"]:
-    #     convert_to_video_with_filename(
-    #         source_path, prepared_path, config['ffmpeg_drawtext_settings']
-    #     )
-    # else:
-    copy_media_file(source_path, prepared_path)
-
-    filename = msg[media_type]
-    if filename in ("(File not included. "
-                    "Change data exporting settings to download.)",
-                    "(File exceeds maximum size. "
-                    "Change data exporting settings to download.)"):
-        filename = "B"
-
-    return {"type": media_type, "source_file": filename}
-
-
 def handle_init(package_dir):
     """Creates tgmix_config.json in the current directory from a template."""
     config_template_path = package_dir / "config.json"
@@ -145,7 +105,8 @@ def stitch_messages(source_messages, target_dir, media_dir, config):
     id_alias_map = {}
 
     next_id = 0
-    pbar = tqdm(source_messages, desc="Step 1/2: Stitching messages")
+    pbar = tqdm(total=len(source_messages),
+                desc="Step 1/2: Stitching messages")
     while next_id < len(source_messages):
         next_message = source_messages[next_id]
         pbar.update()
@@ -167,6 +128,22 @@ def stitch_messages(source_messages, target_dir, media_dir, config):
     return stitched_messages, id_alias_map, author_map
 
 
+def check_attributes(message1, message2,
+                     same: tuple = None, has: tuple = None):
+    if not same:
+        same = ()
+    if not has:
+        has = ()
+
+    for attribute in same:
+        if message1.get(attribute) != message2.get(attribute):
+            return False
+    for attribute in has:
+        if (attribute not in message1) or (attribprocess_mediaute not in message2):
+            return False
+    return True
+
+
 def combine_messages(config, id_alias_map, media_dir, message, message_id,
                      parsed_message, pbar, source_messages, target_dir,
                      id_to_author_map):
@@ -175,13 +152,11 @@ def combine_messages(config, id_alias_map, media_dir, message, message_id,
         return next_id
 
     next_message = source_messages[next_id]
-    while (next_id < len(source_messages) and
-           next_message.get("from_id") == message.get("from_id") and
-           next_message.get("forwarded_from") == message.get(
-                "forwarded_from") and next_message.get(
-                "date_unixtime") == message.get("date_unixtime") and (
-                   next_message.get("text") and message.get("text") or (
-                   parsed_message["content"].get("media") and detect_media(next_message)))):
+    while (check_attributes(message, next_message,
+                            ("from_id", "forwarded_from", "date_unixtime"))
+           and ((check_attributes(message, next_message, has=("text",))
+                 or (parsed_message["content"].get("media")
+               and detect_media(next_message))))):
         pbar.update()
 
         next_text = format_text_entities_to_markdown(
@@ -205,6 +180,9 @@ def combine_messages(config, id_alias_map, media_dir, message, message_id,
 
         id_alias_map[next_message["id"]] = message["id"]
         next_id += 1
+
+        if not len(source_messages) > next_id:
+            return next_id
         next_message = source_messages[next_id]
 
     return next_id
@@ -223,31 +201,33 @@ def combine_reactions(next_message, parsed_message, id_to_author_map):
 
     for next_reaction in next_message["reactions"]:
         next_shape, next_count = (next_reaction[next_reaction["type"]],
-                        next_reaction["count"])
+                                  next_reaction["count"])
 
         # Check if this reaction already exists in our list
+        found = False
         for reaction_id in range(len(parsed_message["reactions"])):
             reaction = parsed_message["reactions"][reaction_id]
-            if reaction != next_shape:
-                continue
+            if reaction.get(next_shape) is not None:
+                parsed_message["reactions"][reaction_id][
+                    next_shape] += next_count
+                found = True
+                break
 
-            parsed_message["reactions"][reaction_id] += next_count
-            break
+        if not found:
+            parsed_message["reactions"].append({
+                next_shape: next_count
+            })
 
-        if next_message["reactions"][-1].get("recent"):
-            next_message["reactions"][-1][
-                "recent"] = minimise_recent_reactions(
-                next_reaction, id_to_author_map)
+        if not next_reaction.get("recent"):
             continue
 
-        parsed_message["reactions"].append({
-            next_shape: next_count
-        })
+        for reaction_id in range(len(parsed_message["reactions"])):
+            if not parsed_message["reactions"][reaction_id].get(next_shape):
+                continue
 
-        if next_message["reactions"][-1].get("recent"):
-            next_message["reactions"][-1][
-                "recent"] = minimise_recent_reactions(
-                next_reaction, id_to_author_map)
+            parsed_message["reactions"][reaction_id].setdefault(
+                "recent", []).extend(minimise_recent_reactions(
+                next_reaction, id_to_author_map))
 
 
 def minimise_recent_reactions(reactions, id_to_author_map) -> list[dict]:
@@ -302,10 +282,10 @@ def parse_message_data(config: dict, media_dir: Path,
             "answers": message["poll"]["answers"],
         }
     if "inline_bot_buttons" in message:
+        parsed_message["inline_buttons"] = []
+
         for button_group in message["inline_bot_buttons"]:
             for button in button_group:
-                parsed_message["inline_buttons"] = []
-
                 if button["type"] == "callback":
                     parsed_message["inline_buttons"].append(button)
                 elif button["type"] == "auth":

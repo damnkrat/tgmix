@@ -4,6 +4,7 @@ import json
 import shutil
 from pathlib import Path
 
+from tgmix import __version__
 from tgmix.message_processor import fix_reply_ids, handle_init, stitch_messages
 
 PACKAGE_DIR = Path(__file__).parent.resolve()
@@ -144,6 +145,14 @@ def main():
         "--init",
         action="store_true",
         help="Create a default 'tgmix_config.json' in the current directory."
+    )
+    parser.add_argument(
+        "--version",
+        "-v",
+        "-V",
+        action="version",
+        version=f"%(prog)s {__version__}",
+        help="Show the version number and exit."
     )
     args = parser.parse_args()
 
