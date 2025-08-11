@@ -299,7 +299,7 @@ def parse_message_data(config: dict, media_dir: Path,
                     parsed_message["inline_buttons"].append(
                         {
                             "type": "auth",
-                            "text": message["text"],
+                            "text": button["text"],
                             "data": button["data"],
                         }
                     )
