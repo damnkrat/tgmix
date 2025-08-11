@@ -299,7 +299,7 @@ def parse_message_data(config: dict, media_dir: Path,
                     parsed_message["inline_buttons"].append(
                         {
                             "type": "auth",
-                            "text": "Открыть комментарии",
+                            "text": message["text"],
                             "data": button["data"],
                         }
                     )
@@ -368,6 +368,16 @@ def parse_service_message(id_to_author_map: dict, message: dict) -> dict:
             if message.get("gift_text"):
                 data["text"] = message["gift_text"]
             return data
+        case "paid_messages_price_change":
+            return {
+                "id": message["id"],
+                "type": "paid_pm_price_change",
+                "time": message["date"],
+                "from": action_from,
+                "price_stars": message["price_stars"],
+                "is_broadcast_messages_allowed":
+                    message["is_broadcast_messages_allowed"],
+            }
 
     print(f"[!] Unhandled service message({message["id"]}): "
           f"{message["action"]}")
