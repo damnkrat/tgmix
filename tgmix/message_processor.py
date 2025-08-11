@@ -139,7 +139,7 @@ def check_attributes(message1, message2,
         if message1.get(attribute) != message2.get(attribute):
             return False
     for attribute in has:
-        if (attribute not in message1) or (attribprocess_mediaute not in message2):
+        if (attribute not in message1) or (attribute not in message2):
             return False
     return True
 
