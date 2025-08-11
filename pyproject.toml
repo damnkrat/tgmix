@@ -10,6 +10,5 @@ dependencies = [
 [project.scripts]
 tgmix = "tgmix.main:main"
 
-# Эта секция гарантирует, что config.json будет включен в пакет при установке
 [tool.setuptools.package-data]
 tgmix = ["config.json"]
