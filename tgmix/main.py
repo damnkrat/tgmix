@@ -1,6 +1,7 @@
 # tgmix/main.py
 import argparse
 import json
+import re
 import shutil
 from pathlib import Path
 
@@ -86,10 +87,26 @@ def create_summary_block(is_transcribed: bool = False,
     return summary_block
 
 
-def run_processing(target_dir: Path):
-    """Main processing logic for the export."""
-    config = load_config(target_dir)
+def parse_cli_dict(rules_list: list[str] | None) -> dict:
+    """Parses 'key:value' strings from CLI into a single dictionary."""
+    if not rules_list:
+        return {}
 
+    parsed = {}
+    for item in rules_list:
+        if ':' not in item:
+            print(f"[!] Warning: Skipping invalid rule '{item}'. "
+                  f"Format must be 'key:value'.")
+            continue
+
+        key, value = item.split(':', 1)
+        parsed[key] = value
+    return parsed
+
+
+def run_processing(target_dir: Path, config: dict,
+                   masking_rules: dict | None, do_anonymise: bool):
+    """Main processing logic for the export."""
     export_json_path = target_dir / config['export_json_file']
     if not export_json_path.exists():
         print(f"[!] Error: '{config['export_json_file']}' not found"
@@ -106,10 +123,28 @@ def run_processing(target_dir: Path):
 
     # Stitch messages together
     stitched_messages, id_alias_map, author_map = stitch_messages(
-        raw_messages["messages"], target_dir, media_dir, config
+        raw_messages["messages"], target_dir, media_dir, config, masking_rules,
+        do_anonymise
     )
 
     fix_reply_ids(stitched_messages, id_alias_map)
+
+    chat_name = raw_messages.get("name")
+    if masking_rules and ("authors" in masking_rules.get("presets", {})):
+        template = masking_rules["presets"]["authors"]
+        print("[*] Anonymizing author names...")
+
+        for compact_id in author_map.keys():
+            numeric_id_match = re.search(r'\d+', compact_id)
+            if not numeric_id_match:
+                continue
+
+            unique_placeholder = template.replace(
+                ']', f'_{numeric_id_match.group(0)}]'
+            )
+            author_map[compact_id] = unique_placeholder
+
+        chat_name = raw_messages.get("type", "")
 
     # Format and save the final result
     processed_chat = create_summary_block(
@@ -117,7 +152,7 @@ def run_processing(target_dir: Path):
         "(File not included. "
         "Change data exporting settings to download.)" in str(raw_messages)
     )
-    processed_chat["chat_name"] = raw_messages.get("name")
+    processed_chat["chat_name"] = chat_name
     processed_chat["author_map"] = author_map
     processed_chat["messages"] = stitched_messages
 
@@ -154,19 +189,72 @@ def main():
         version=f"%(prog)s {__version__}",
         help="Show the version number and exit."
     )
+    parser.add_argument(
+        "-a",
+        "--anonymize",
+        action="store_true",
+        help="Enable anonymization of message content. "
+             "Rules are taken from config or overridden by CLI flags."
+    )
+    parser.add_argument(
+        '--mask-preset',
+        nargs='+',
+        metavar='PRESET',
+        help='A list of built-in presets to use (e.g., phone email authors). '
+             'Overrides presets in config.'
+    )
+    parser.add_argument(
+        '--mask-literal',
+        nargs='+',
+        metavar='"LITERAL:REPLACEMENT"',
+        help="A list of exact phrases to mask, with their replacements. "
+             "Overrides literals in config."
+    )
+    parser.add_argument(
+        '--mask-regex',
+        nargs='+',
+        metavar='"REGEX:REPLACEMENT"',
+        help="A list of regex patterns to mask, with their replacements. "
+             "Overrides regex rules in config."
+    )
+
     args = parser.parse_args()
 
     if args.init:
         handle_init(PACKAGE_DIR)
         return
 
-    if args.path:
-        target_directory = Path(args.path).resolve()
-    else:
-        target_directory = Path.cwd()
+    target_directory = Path(args.path).resolve() if args.path else Path.cwd()
+    config = load_config(target_directory)
+    masking_rules: dict | None = dict()
+
+    if args.anonymize or config.get("anonymize", False):
+        print("[*] Anonymization enabled.")
+        masking_rules = {
+            "default_phone_region": config.get("default_phone_region", "RU")
+        }
+
+        default_presets = config.get("mask_presets", {})
+
+        active_presets = (
+            args.mask_preset if args.mask_preset else
+            default_presets.keys()
+        )
+        masking_rules["presets"] = {
+            preset: default_presets.get(
+                preset, f"[{preset.upper()}]") for preset in active_presets
+        }
+        masking_rules["literals"] = (
+            parse_cli_dict(args.mask_literal) if args.mask_literal else
+            config.get("mask_literals", {})
+        )
+        masking_rules["regex"] = (
+            parse_cli_dict(args.mask_regex) if args.mask_regex else
+            config.get("mask_regex", {})
+        )
 
     print(f"--- Starting TGMix on directory: {target_directory} ---")
-    run_processing(target_directory)
+    run_processing(target_directory, config, masking_rules, args.anonymize)
 
 
 if __name__ == "__main__":

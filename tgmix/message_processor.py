@@ -1,11 +1,107 @@
 # tgmix/message_processor.py
+import re
 import shutil
 from pathlib import Path
 
+import phonenumbers
 from tqdm import tqdm
 
 from tgmix.media_processor import process_media
 from tgmix.consts import MEDIA_KEYS
+
+class Masking:
+    def __init__(self, rules: dict | None, enabled: bool):
+        self.rules = rules
+        self.email_re = re.compile(
+            r'\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}'
+            r'[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}'
+            r'[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}\b')
+        self.enabled = enabled
+
+    @staticmethod
+    def _replace_phone_numbers(text: str, placeholder: str,
+                               region: str | None) -> str:
+        """
+        Finds, filters, and replaces phone numbers for a single pass.
+
+        :param text: The text to process.
+        :param placeholder: The string to replace numbers with.
+        :param region: The region to search for. If None, searches for
+                       international numbers only.
+        :return: Text with numbers replaced.
+        """
+        unique_matches = {}
+
+        matcher = phonenumbers.PhoneNumberMatcher(text, region)
+        for match in matcher:
+            unique_matches[(match.start, match.end)] = match
+
+        if not unique_matches:
+            return text
+
+        all_found = list(unique_matches.values())
+        non_nested_matches = []
+
+        for current_match in all_found:
+            is_nested = False
+            for other_match in all_found:
+                if current_match is other_match:
+                    continue
+                if (other_match.start > current_match.start
+                        or other_match.end < current_match.end):
+                    continue
+
+                is_nested = True
+                break
+
+            if not is_nested:
+                non_nested_matches.append(current_match)
+
+        sorted_matches = sorted(
+            non_nested_matches,
+            key=lambda m: m.start,
+            reverse=True
+        )
+
+        for match in sorted_matches:
+            text = f"{text[:match.start]}{placeholder}{text[match.end:]}"
+        return text
+
+    def apply(self, text: str) -> str:
+        """Applies a set of masking rules to the given text."""
+        if (not self.enabled) or (not self.rules) or (not text):
+            return text
+
+        # Order of application: Literals -> Presets -> Regex
+        # This is to prevent a generic regex from masking a more specific literal.
+
+        # Literals
+        for literal, placeholder in self.rules.get("literals", {}).items():
+            # Use re.escape to treat a literal as a plain string, not a regex:
+            text = re.sub(
+                re.escape(literal), placeholder, text, flags=re.IGNORECASE
+            )
+
+        # Presets (excluding 'authors', which is handled separately)
+        preset_rules = self.rules.get("presets", {})
+        if "email" in preset_rules:
+            text = self.email_re.sub(preset_rules["email"], text)
+
+        if "phone" in preset_rules:
+            placeholder = preset_rules["phone"]
+            region = self.rules.get("default_phone_region", "US")
+
+            text = self._replace_phone_numbers(text, placeholder, region)
+            text = self._replace_phone_numbers(text, placeholder, None)
+
+        # Custom Regex
+        for pattern, placeholder in self.rules.get("regex", {}).items():
+            try:
+                text = re.sub(pattern, placeholder, text)
+            except re.error as e:
+                print(f"[!] Warning: Invalid regex '{pattern}'. {e}")
+
+        return text
 
 
 def detect_media(message: dict) -> str:
@@ -62,7 +158,7 @@ def format_text_entities_to_markdown(entities: list) -> str:
     return "".join(markdown_parts)
 
 
-def handle_init(package_dir):
+def handle_init(package_dir: Path) -> None:
     """Creates tgmix_config.json in the current directory from a template."""
     config_template_path = package_dir / "config.json"
     target_config_path = Path.cwd() / "tgmix_config.json"
@@ -79,7 +175,9 @@ def handle_init(package_dir):
     print(f"[+] Configuration file 'tgmix_config.json' created successfully.")
 
 
-def stitch_messages(source_messages, target_dir, media_dir, config):
+def stitch_messages(source_messages: list, target_dir: Path, media_dir: Path,
+                    config: dict, masking_rules: dict,
+                    do_anonymise: bool) -> tuple[list, dict, dict]:
     """
     Step 1: Iterates through messages, gathers "raw" parts,
     and then parses them at once. Returns processed messages and maps.
@@ -87,6 +185,7 @@ def stitch_messages(source_messages, target_dir, media_dir, config):
     author_map = {}
     id_to_author_map = {}
     author_counter = 1
+    masking = Masking(masking_rules, do_anonymise)
 
     for next_message in source_messages:
         author_id = next_message.get("from_id")
@@ -117,16 +216,17 @@ def stitch_messages(source_messages, target_dir, media_dir, config):
                 continue
 
             stitched_messages.append(
-                parse_service_message(id_to_author_map, next_message))
+                parse_service_message(id_to_author_map, next_message, masking))
             next_id += 1
             continue
 
         parsed_msg = parse_message_data(config, media_dir, next_message,
-                                        target_dir, id_to_author_map)
+                                        target_dir, id_to_author_map, masking)
 
         next_id = combine_messages(
             config, id_alias_map, media_dir, next_message, next_id,
-            parsed_msg, pbar, source_messages, target_dir, id_to_author_map
+            parsed_msg, pbar, source_messages, target_dir, id_to_author_map,
+            masking
         )
         stitched_messages.append(parsed_msg)
 
@@ -134,8 +234,8 @@ def stitch_messages(source_messages, target_dir, media_dir, config):
     return stitched_messages, id_alias_map, author_map
 
 
-def check_attributes(message1, message2,
-                     same: tuple = None, has: tuple = None):
+def check_attributes(message1: dict, message2: dict,
+                     same: tuple = None, has: tuple = None) -> bool:
     if not same:
         same = ()
     if not has:
@@ -150,9 +250,10 @@ def check_attributes(message1, message2,
     return True
 
 
-def combine_messages(config, id_alias_map, media_dir, message, message_id,
-                     parsed_message, pbar, source_messages, target_dir,
-                     id_to_author_map):
+def combine_messages(config: dict, id_alias_map: dict, media_dir: Path,
+                     message: dict, message_id: int, parsed_message: dict,
+                     pbar: tqdm, source_messages: list, target_dir: Path,
+                     id_to_author_map: dict, masking: Masking) -> int:
     next_id = message_id + 1
     if not len(source_messages) > next_id:
         return next_id
@@ -166,8 +267,9 @@ def combine_messages(config, id_alias_map, media_dir, message, message_id,
                and detect_media(next_message))))):
         pbar.update()
 
-        next_text = format_text_entities_to_markdown(
-            next_message.get("text"))
+        next_text = masking.apply(
+            format_text_entities_to_markdown(next_message.get("text")))
+
         if next_text:
             if not parsed_message["content"].get("text"):
                 parsed_message["content"]["text"] = next_text
@@ -195,7 +297,8 @@ def combine_messages(config, id_alias_map, media_dir, message, message_id,
     return next_id
 
 
-def combine_reactions(next_message, parsed_message, id_to_author_map):
+def combine_reactions(next_message: dict, parsed_message: dict,
+                      id_to_author_map: dict) -> None:
     """
     Merges raw reactions from next_msg_data with already processed
     reactions in parsed_message, applying minimization.
@@ -209,6 +312,8 @@ def combine_reactions(next_message, parsed_message, id_to_author_map):
     for next_reaction in next_message["reactions"]:
         next_shape, next_count = (next_reaction[next_reaction["type"]],
                                   next_reaction["count"])
+        if next_reaction["type"] == "paid":
+            next_shape = "⭐️"
 
         # Check if this reaction already exists in our list
         found = False
@@ -237,7 +342,8 @@ def combine_reactions(next_message, parsed_message, id_to_author_map):
                 next_reaction, id_to_author_map))
 
 
-def minimise_recent_reactions(reactions, id_to_author_map) -> list[dict]:
+def minimise_recent_reactions(reactions: dict,
+                              id_to_author_map: dict) -> list[dict]:
     recent = []
     for reaction in reactions["recent"]:
         if author_id := id_to_author_map.get(reaction["from_id"]):
@@ -258,7 +364,8 @@ def minimise_recent_reactions(reactions, id_to_author_map) -> list[dict]:
 
 def parse_message_data(config: dict, media_dir: Path,
                        message: dict, target_dir: Path,
-                       id_to_author_map: dict) -> dict:
+                       id_to_author_map: dict,
+                       masking: Masking) -> dict:
     """Parses a single message using the author map."""
     parsed_message = {
         "id": message["id"],
@@ -268,25 +375,31 @@ def parse_message_data(config: dict, media_dir: Path,
     }
 
     if message.get("text"):
-        parsed_message["content"]["text"] = format_text_entities_to_markdown(
-            message["text"])
+        parsed_message["content"]["text"] = masking.apply(
+            format_text_entities_to_markdown(message["text"]))
     if "reply_to_message_id" in message:
         parsed_message["reply_to_message_id"] = message["reply_to_message_id"]
     if media := process_media(message, target_dir, media_dir, config):
         parsed_message["content"]["media"] = media["source_file"]
     if "forwarded_from" in message:
-        parsed_message["forwarded_from"] = message["forwarded_from"]
+        parsed_message["forwarded_from"] = masking.apply(
+            message["forwarded_from"])
     if "edited" in message:
         parsed_message["edited_time"] = message["edited"]
     if "author" in message:
-        parsed_message["post_author"] = message["author"]
+        parsed_message["post_author"] = masking.apply(
+            message["author"])
     if "paid_stars_amount" in message:
         parsed_message["media_unlock_stars"] = message["paid_stars_amount"]
     if "poll" in message:
+        answers = {
+            masking.apply(answer) for answer in message["pool"]["answers"]
+        }
         parsed_message["poll"] = {
-            "question": message["poll"]["question"],
+            "question": masking.apply(
+                message["poll"]["question"]),
             "closed": message["poll"]["closed"],
-            "answers": message["poll"]["answers"],
+            "answers": answers,
         }
     if "inline_bot_buttons" in message:
         parsed_message["inline_buttons"] = []
@@ -299,7 +412,7 @@ def parse_message_data(config: dict, media_dir: Path,
                     parsed_message["inline_buttons"].append(
                         {
                             "type": "auth",
-                            "text": button["text"],
+                            "text": masking.apply(button["text"]),
                             "data": button["data"],
                         }
                     )
@@ -321,7 +434,8 @@ def parse_message_data(config: dict, media_dir: Path,
     return parsed_message
 
 
-def parse_service_message(id_to_author_map: dict, message: dict) -> dict:
+def parse_service_message(id_to_author_map: dict, message: dict,
+                          masking: Masking) -> dict:
     action_from = id_to_author_map.get(message.get("actor_id"))
 
     match message.get("action"):
@@ -338,12 +452,14 @@ def parse_service_message(id_to_author_map: dict, message: dict) -> dict:
                 data["duration"] = message["duration_seconds"]
             return data
         case "invite_to_group_call":
+            members = [
+                masking.apply(member) for member in message["members"]]
             return {
                 "id": message["id"],
                 "type": "invite_to_group_call",
                 "time": message["date"],
                 "from": action_from,
-                "members": message["members"],
+                "members": members,
             }
         case "pin_message":
             return {
@@ -379,12 +495,24 @@ def parse_service_message(id_to_author_map: dict, message: dict) -> dict:
                     message["is_broadcast_messages_allowed"],
             }
 
+    if masking.enabled:
+        print(f"[!] Unhandled service message({message["id"]}): "
+              f"{message["action"]}")
+        return {
+            "id": message["id"],
+            "type": message.get("action"),
+            "time": message["date"],
+            "from": action_from,
+            "notice":
+                "Not included due to unknown action and anonymization enabled."
+        }
+
     print(f"[!] Unhandled service message({message["id"]}): "
           f"{message["action"]}")
     return message
 
 
-def fix_reply_ids(messages, alias_map):
+def fix_reply_ids(messages: list, alias_map: dict) -> None:
     """
     Goes through the stitched messages and fixes reply IDs
     using the alias map.
