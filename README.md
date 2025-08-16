@@ -47,7 +47,7 @@ The development of TGMix is planned in stages. Here is what's available now and 
 
 #### Via [PyPI](https://pypi.org/project/tgmix)
 ```bash
-pip install tgmix
+pip install -U tgmix
 ```
 
 #### From GitHub (For development)
@@ -198,7 +198,7 @@ tgmix --anonymize \
 ```
 *   **What it does:**
     *   `--anonymize`: Enables the feature.
-    *   `--mask-preset email`: Uses **only** email and phone presets.
+    *   `--mask-preset email phone`: Uses **only** email and phone presets.
     *   `--mask-literal ...`: Overrides all literals from the config and uses only the two provided here.
     *   `--mask-regex ...`: Overrides all regex rules from the config and uses only the one for a custom ID code.
 
