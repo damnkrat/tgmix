@@ -105,13 +105,13 @@ def parse_cli_dict(rules_list: list[str] | None) -> dict:
 
 
 def run_processing(target_dir: Path, config: dict,
-                   masking_rules: dict | None, do_anonymise: bool):
+                   masking_rules: dict | None, do_anonymise: bool) -> dict:
     """Main processing logic for the export."""
     export_json_path = target_dir / config['export_json_file']
     if not export_json_path.exists():
         print(f"[!] Error: '{config['export_json_file']}' not found"
               f" in {target_dir}")
-        return
+        return {}
 
     media_dir = target_dir / config['media_output_dir']
     if media_dir.exists():
@@ -156,11 +156,7 @@ def run_processing(target_dir: Path, config: dict,
     processed_chat["author_map"] = author_map
     processed_chat["messages"] = stitched_messages
 
-    output_path = target_dir / config['final_output_json']
-    with open(output_path, "w", encoding="utf-8") as file:
-        json.dump(processed_chat, file, ensure_ascii=False, indent=2)
-
-    print(f"\n--- Processing complete! Result saved to {output_path} ---")
+    return processed_chat
 
 
 def main():
@@ -225,6 +221,13 @@ def main():
         return
 
     target_directory = Path(args.path).resolve() if args.path else Path.cwd()
+    if target_directory.is_file():
+        if target_directory.suffix != ".json":
+            print("[!] Error: Path must be a directory, not a file.")
+            return
+
+        target_directory = target_directory.parent
+
     config = load_config(target_directory)
     masking_rules: dict | None = dict()
 
@@ -254,7 +257,17 @@ def main():
         )
 
     print(f"--- Starting TGMix on directory: {target_directory} ---")
-    run_processing(target_directory, config, masking_rules, args.anonymize)
+    processed_chat = run_processing(
+        target_directory, config, masking_rules, args.anonymize)
+
+    if not processed_chat:
+        return
+
+    output_path = target_directory / config['final_output_json']
+    with open(output_path, "w", encoding="utf-8") as file:
+        json.dump(processed_chat, file, ensure_ascii=False, indent=2)
+
+    print(f"\n--- Processing complete! Result saved to {output_path} ---")
 
 
 if __name__ == "__main__":

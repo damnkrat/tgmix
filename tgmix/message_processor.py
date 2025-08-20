@@ -495,9 +495,9 @@ def parse_service_message(id_to_author_map: dict, message: dict,
                     message["is_broadcast_messages_allowed"],
             }
 
+    print(f"[!] Unhandled service message({message["id"]}): "
+          f"{message["action"]}")
     if masking.enabled:
-        print(f"[!] Unhandled service message({message["id"]}): "
-              f"{message["action"]}")
         return {
             "id": message["id"],
             "type": message.get("action"),
@@ -506,9 +506,6 @@ def parse_service_message(id_to_author_map: dict, message: dict,
             "notice":
                 "Not included due to unknown action and anonymization enabled."
         }
-
-    print(f"[!] Unhandled service message({message["id"]}): "
-          f"{message["action"]}")
     return message
 
 
