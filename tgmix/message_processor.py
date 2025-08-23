@@ -261,7 +261,8 @@ def combine_messages(config: dict, id_alias_map: dict, media_dir: Path,
     next_message = source_messages[next_id]
     while (check_attributes(message, next_message,
                             ("from_id", "forwarded_from", "date_unixtime"))
-           and (not check_attributes(message, next_message, has=("type",)))
+           and (check_attributes(message, next_message, ("type",))
+                and message.get("type") == "message")
            and ((check_attributes(message, next_message, has=("text",))
                  or (parsed_message["content"].get("media")
                and detect_media(next_message))))):
@@ -310,8 +311,9 @@ def combine_reactions(next_message: dict, parsed_message: dict,
         parsed_message["reactions"] = []
 
     for next_reaction in next_message["reactions"]:
-        next_shape, next_count = (next_reaction[next_reaction["type"]],
-                                  next_reaction["count"])
+        next_shape, next_count = (
+            next_reaction.get("emoji") or next_reaction.get("document_id")
+            or "⭐️", next_reaction["count"])
         if next_reaction["type"] == "paid":
             next_shape = "⭐️"
 
