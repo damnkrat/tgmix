@@ -392,9 +392,9 @@ def parse_message_data(config: dict, media_dir: Path,
     if "paid_stars_amount" in message:
         parsed_message["media_unlock_stars"] = message["paid_stars_amount"]
     if "poll" in message:
-        answers = {
-            masking.apply(answer) for answer in message["pool"]["answers"]
-        }
+        answers = [
+            masking.apply(answer) for answer in message["poll"]["answers"]
+        ]
         parsed_message["poll"] = {
             "question": masking.apply(
                 message["poll"]["question"]),
@@ -493,6 +493,41 @@ def parse_service_message(id_to_author_map: dict, message: dict,
                 "price_stars": message["price_stars"],
                 "is_broadcast_messages_allowed":
                     message["is_broadcast_messages_allowed"],
+            }
+        case "join_group_by_request":
+            return {
+                "id": message["id"],
+                "type": "join_group_by_request",
+                "time": message["date"],
+                "from": action_from
+            }
+        case "join_group_by_link":
+            return {
+                "id": message["id"],
+                "type": "join_group_by_link",
+                "time": message["date"],
+                "from": action_from,
+                "inviter": message["inviter"]
+            }
+        case "invite_members":
+            members = [
+                masking.apply(member) for member in message["members"]]
+            return {
+                "id": message["id"],
+                "type": "invite_members",
+                "time": message["date"],
+                "from": action_from,
+                "members": members,
+            }
+        case "remove_members":
+            members = [
+                masking.apply(member) for member in message["members"]]
+            return {
+                "id": message["id"],
+                "type": "remove_members",
+                "time": message["date"],
+                "from": action_from,
+                "members": members,
             }
 
     print(f"[!] Unhandled service message({message["id"]}): "

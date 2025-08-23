@@ -1,12 +1,14 @@
 # tgmix/main.py
 import argparse
-import json
 import re
 import shutil
 from pathlib import Path
 
+from ujson import JSONDecodeError, dump, loads
+
 from tgmix import __version__
 from tgmix.message_processor import fix_reply_ids, handle_init, stitch_messages
+from tgmix.stats_processor import compute_chat_stats, print_stats
 
 PACKAGE_DIR = Path(__file__).parent.resolve()
 
@@ -25,14 +27,14 @@ def load_config(target_dir: Path) -> dict:
     if local_config_path.exists():
         try:
             print("[*] Local tgmix_config.json found. Using its settings.")
-            return json.loads(open(local_config_path, encoding='utf-8').read())
-        except json.JSONDecodeError as e:
+            return loads(open(local_config_path, encoding='utf-8').read())
+        except JSONDecodeError as e:
             print(f"[!] Error: Invalid JSON format in {local_config_path}'.")
             raise e
 
     # If no local config, load the built-in one
     try:
-        return json.loads(open(default_config_path, encoding='utf-8').read())
+        return loads(open(default_config_path, encoding='utf-8').read())
     except FileNotFoundError as e:
         print("[!] Critical Error: "
               "Built-in config.json not found in the package.")
@@ -105,13 +107,14 @@ def parse_cli_dict(rules_list: list[str] | None) -> dict:
 
 
 def run_processing(target_dir: Path, config: dict,
-                   masking_rules: dict | None, do_anonymise: bool) -> dict:
+                   masking_rules: dict | None,
+                   do_anonymise: bool) -> tuple[dict, dict]:
     """Main processing logic for the export."""
     export_json_path = target_dir / config['export_json_file']
     if not export_json_path.exists():
         print(f"[!] Error: '{config['export_json_file']}' not found"
               f" in {target_dir}")
-        return {}
+        return {}, {}
 
     media_dir = target_dir / config['media_output_dir']
     if media_dir.exists():
@@ -119,17 +122,17 @@ def run_processing(target_dir: Path, config: dict,
         shutil.rmtree(media_dir)
 
     media_dir.mkdir(exist_ok=True)
-    raw_messages = json.loads(open(export_json_path, encoding="utf-8").read())
+    raw_chat = loads(open(export_json_path, encoding="utf-8").read())
 
     # Stitch messages together
     stitched_messages, id_alias_map, author_map = stitch_messages(
-        raw_messages["messages"], target_dir, media_dir, config, masking_rules,
+        raw_chat["messages"], target_dir, media_dir, config, masking_rules,
         do_anonymise
     )
 
     fix_reply_ids(stitched_messages, id_alias_map)
 
-    chat_name = raw_messages.get("name")
+    chat_name = raw_chat.get("name")
     if masking_rules and ("authors" in masking_rules.get("presets", {})):
         template = masking_rules["presets"]["authors"]
         print("[*] Anonymizing author names...")
@@ -144,19 +147,19 @@ def run_processing(target_dir: Path, config: dict,
             )
             author_map[compact_id] = unique_placeholder
 
-        chat_name = raw_messages.get("type", "")
+        chat_name = "[ANONYMIZED CHAT]"
 
     # Format and save the final result
     processed_chat = create_summary_block(
         False,
         "(File not included. "
-        "Change data exporting settings to download.)" in str(raw_messages)
+        "Change data exporting settings to download.)" in str(raw_chat)
     )
     processed_chat["chat_name"] = chat_name
     processed_chat["author_map"] = author_map
     processed_chat["messages"] = stitched_messages
 
-    return processed_chat
+    return processed_chat, raw_chat
 
 
 def main():
@@ -191,6 +194,11 @@ def main():
         action="store_true",
         help="Enable anonymization of message content. "
              "Rules are taken from config or overridden by CLI flags."
+    )
+    parser.add_argument(
+        "--no-stats",
+        action="store_true",
+        help="Disable statistics computation and printing."
     )
     parser.add_argument(
         '--mask-preset',
@@ -257,7 +265,7 @@ def main():
         )
 
     print(f"--- Starting TGMix on directory: {target_directory} ---")
-    processed_chat = run_processing(
+    processed_chat, raw_chat = run_processing(
         target_directory, config, masking_rules, args.anonymize)
 
     if not processed_chat:
@@ -265,10 +273,19 @@ def main():
 
     output_path = target_directory / config['final_output_json']
     with open(output_path, "w", encoding="utf-8") as file:
-        json.dump(processed_chat, file, ensure_ascii=False, indent=2)
+        dump(processed_chat, file, ensure_ascii=False, indent=2)
 
-    print(f"\n--- Processing complete! Result saved to {output_path} ---")
+    if args.no_stats:
+        return
+    if not config.get("enable_stats", True):
+        return
+
+    if not (stats := compute_chat_stats(processed_chat, raw_chat)):
+        print("[!] Error: Failed to compute statistics.")
+        return
+    print_stats(stats, config, args.anonymize)
 
 
 if __name__ == "__main__":
     main()
+
