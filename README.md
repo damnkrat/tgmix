@@ -36,7 +36,7 @@ The development of TGMix is planned in stages. Here is what's available now and 
 
 ## Requirements
 
--   **Python 3.13+**
+-   **Python 3.10+**
 
 [//]: # (-   **FFmpeg**: You must have FFmpeg installed and accessible in your system's PATH. You can download it from the [official FFmpeg website]&#40;https://ffmpeg.org/download.html&#41;.)
 
@@ -152,8 +152,10 @@ You can control TGMix directly from the command line. Flags and options provided
     Displays the installed version of TGMix and exits.
 -   `-a`, `--anonymize`
     Enables the anonymization feature for the current run.
+-   `--no-stats`
+    Disables the computation and printing of processing statistics at the end of the run.
 -   `--mask-preset <preset1> <preset2> ...`
-    Overrides the list of active presets. Only the presets you list here will be used.
+    Overrides the list of active presets from the config file. Only the presets you list here will be used.
 -   `--mask-literal "phrase:replacement"`
     Overrides the `mask_literals` dictionary from your config file. You can provide multiple rules.
 -   `--mask-regex "pattern:replacement"`
@@ -176,6 +178,7 @@ Imagine you only want to anonymize authors for a particular analysis, ignoring o
 tgmix --anonymize --mask-preset authors
 ```
 *   **What it does:** This command overrides the `mask_presets` from your config. It will **only** anonymize author names in the `author_map`, ignoring the `phone` and `email` presets even if they are present in the JSON file.
+*   **Note:** Authors are not anonymized in message text. The reason is author name can be, for example, just "a". It will just break most messages in the export. To anonymize it in message text, you need to add it to `mask_literals` or `mask_regex`.
 
 #### Example 3: Adding a One-Time Redaction Rule
 
