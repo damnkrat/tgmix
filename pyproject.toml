@@ -3,12 +3,34 @@ name = "tgmix"
 version = "0.2.0"
 description = "A tool to process Telegram chat exports into an AI-friendly format, inspired by Repomix."
 requires-python = ">=3.10"
+readme = "README.md"
 dependencies = [
     "phonenumbers>=9.0.12",
     "rs-bpe>=0.1.0",
     "tqdm>=4.67.1",
     "ujson>=5.11.0",
 ]
+license = { file="LICENSE" }
+keywords = ["telegram", "chat", "export", "llm", "ai", "dataset", "nlp", "chatgpt", "gemini", "grok", "claude", "llama"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Operating System :: OS Independent",
+    "Topic :: Text Processing",
+    "Topic :: Utilities",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+]
+authors = [
+    { name="damnkrat" },
+]
+
+[project.urls]
+Source = "https://github.com/damnkrat/tgmix"
+"Bug Tracker" = "https://github.com/damnkrat/tgmix/issues"
+
 
 [project.scripts]
 tgmix = "tgmix.main:main"
