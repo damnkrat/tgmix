@@ -143,7 +143,7 @@ def format_text_entities_to_markdown(entities: list) -> str:
             case "code":
                 markdown_parts.append(f"`{text}`")
             case "pre":
-                markdown_parts.append(f"```{entity.get("language", "")}\n"
+                markdown_parts.append(f"```{entity.get('language', '')}\n"
                                       f"{text}\n```")
             case "link":
                 markdown_parts.append(text)
@@ -532,8 +532,8 @@ def parse_service_message(id_to_author_map: dict, message: dict,
                 "members": members,
             }
 
-    print(f"[!] Unhandled service message({message["id"]}): "
-          f"{message["action"]}")
+    print(f"[!] Unhandled service message({message['id']}): "
+          f"{message['action']}")
     if masking.enabled:
         return {
             "id": message["id"],

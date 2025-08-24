@@ -2,7 +2,7 @@
 name = "tgmix"
 version = "0.2.0"
 description = "A tool to process Telegram chat exports into an AI-friendly format, inspired by Repomix."
-requires-python = ">=3.13"
+requires-python = ">=3.10"
 dependencies = [
     "phonenumbers>=9.0.12",
     "rs-bpe>=0.1.0",
