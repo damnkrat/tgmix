@@ -7,7 +7,7 @@ from pathlib import Path
 from ujson import JSONDecodeError, dump, loads
 
 from tgmix import __version__
-from tgmix.message_processor import fix_reply_ids, handle_init, stitch_messages
+from tgmix.message_processor import MessageProcessor
 from tgmix.stats_processor import compute_chat_stats, print_stats
 
 PACKAGE_DIR = Path(__file__).parent.resolve()
@@ -123,14 +123,15 @@ def run_processing(target_dir: Path, config: dict,
 
     media_dir.mkdir(exist_ok=True)
     raw_chat = loads(open(export_json_path, encoding="utf-8").read())
+    message_processor = MessageProcessor(
+        target_dir, media_dir, config["mark_media"], masking_rules,
+        do_anonymise)
 
     # Stitch messages together
-    stitched_messages, id_alias_map, author_map = stitch_messages(
-        raw_chat["messages"], target_dir, media_dir, config, masking_rules,
-        do_anonymise
-    )
+    stitched_messages, author_map = (
+        message_processor.stitch_messages(raw_chat["messages"]))
 
-    fix_reply_ids(stitched_messages, id_alias_map)
+    message_processor.fix_reply_ids(stitched_messages)
 
     chat_name = raw_chat.get("name")
     if masking_rules and ("authors" in masking_rules.get("presets", {})):
@@ -160,6 +161,25 @@ def run_processing(target_dir: Path, config: dict,
     processed_chat["messages"] = stitched_messages
 
     return processed_chat, raw_chat
+
+
+def handle_init(package_dir: Path) -> None:
+    """Creates tgmix_config.json in the current directory from a template."""
+    config_template_path = package_dir / "config.json"
+    target_config_path = Path.cwd() / "tgmix_config.json"
+
+    if not config_template_path.exists():
+        print(
+            "[!] Critical Error: config.json template not found in package.")
+        return
+
+    if target_config_path.exists():
+        print(f"[!] File 'tgmix_config.json' already exists here.")
+        return
+
+    shutil.copy(config_template_path, target_config_path)
+    print(
+        f"[+] Configuration file 'tgmix_config.json' created successfully.")
 
 
 def main():

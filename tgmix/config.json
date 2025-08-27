@@ -4,6 +4,7 @@
   "final_output_json": "tgmix_output.json",
   "enable_stats": true,
   "anonymize": false,
+  "mark_media": true,
   "default_phone_region": "RU",
   "mask_regex": {},
   "mask_literals": {},

@@ -56,6 +56,7 @@ def print_stats(stats: dict, config: dict, anonymised: bool) -> None:
           f"-> {stats['total_tokens']:,}\n"
           f"Total chars: {stats['raw_total_chars']:,} "
           f"-> {stats['total_chars']:,}\n"
+          f"File tokens: unaccounted\n"
           f"Output file: {config['final_output_json']}\n"
           f"Anonymization: {'ON' if anonymised else 'OFF'}\n"
           "\n"

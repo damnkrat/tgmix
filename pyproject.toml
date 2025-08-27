@@ -9,6 +9,7 @@ dependencies = [
     "rs-bpe>=0.1.0",
     "tqdm>=4.67.1",
     "ujson>=5.11.0",
+    "MarkMyMedia>=1.1.0",
 ]
 license = { file="LICENSE" }
 keywords = ["telegram", "chat", "export", "llm", "ai", "dataset", "nlp", "chatgpt", "gemini", "grok", "claude", "llama"]
