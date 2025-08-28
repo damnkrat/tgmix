@@ -48,30 +48,29 @@ class Media:
         self.mark_media(source_path, prepared_path)
         return filename
 
-    # noinspection PyTypeChecker
-    # TODO remove suppression when markmymedia will update
+    def _mark_media(self, func, source_path: Path, prepared_path: Path) -> None:
+        try:
+            func(source_path, prepared_path)
+        except (AudioMarkingError, VideoMarkingError, ImageMarkingError):
+            pass
+        except InvalidMediaError:
+            print(f"[!] Invalid media: {source_path.name}")
+        except FFmpegProcessError:
+            print("[!] Ffmpeg not found, disabling media marking.")
+            self.do_mark_media = False
+            self.copy_media_file(source_path, prepared_path)
+
     def mark_media(self, source_path: Path,
                    prepared_path: Path) -> None:
         file_type = source_path.parent.name
 
-        # Decide how to process the file
-        # I do not like this try-except structure :(
-        # It is a fault of a library, not mine
         if file_type == "voice_messages":
-            try:
-                mark_audio(source_path, prepared_path.with_suffix(".mp4"))
-            except (AudioMarkingError, InvalidMediaError, FFmpegProcessError):
-                pass
+            self._mark_media(mark_audio, source_path,
+                             prepared_path.with_suffix(".mp4"))
         elif file_type in ("round_video_messages", "video_files"):
-            try:
-                mark_video(source_path, prepared_path)
-            except (VideoMarkingError, InvalidMediaError, FFmpegProcessError):
-                pass
+            self._mark_media(mark_video, source_path, prepared_path)
         elif file_type == "photos":
-            try:
-                mark_image(source_path, prepared_path)
-            except (ImageMarkingError, InvalidMediaError, FFmpegProcessError):
-                pass
+            self._mark_media(mark_image, source_path, prepared_path)
         else:
             self.copy_media_file(source_path, prepared_path)
 
