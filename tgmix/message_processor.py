@@ -11,6 +11,10 @@ from tgmix.media_processor import Media
 class Masking:
     def __init__(self, rules: dict | None, enabled: bool):
         self.rules = rules
+        self.rules["regex"] = {
+            re.compile(rule): placeholder
+            for rule, placeholder in rules["regex"].items()}
+
         self.email_re = re.compile(
             r'\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}'
             r'[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}'
@@ -95,11 +99,12 @@ class Masking:
             text = self._replace_phone_numbers(text, placeholder, None)
 
         # Custom Regex
-        for pattern, placeholder in self.rules.get("regex", {}).items():
+        for pattern_re, placeholder in self.rules.get("regex", {}).items():
             try:
-                text = re.sub(pattern, placeholder, text)
+                text = pattern_re.sub(placeholder, text)
             except re.error as e:
-                print(f"[!] Warning: Invalid regex '{pattern}'. {e}")
+                print(f"[!] Warning: Invalid regex '{pattern_re.pattern}'. "
+                      f"{e}")
 
         return text
 
@@ -372,7 +377,7 @@ class MessageProcessor:
                 "paid_stars_amount"]
         if "poll" in message:
             answers = [
-                self.masking.apply(answer) for answer in message[
+                self.masking.apply(answer["text"]) for answer in message[
                     "poll"]["answers"]
             ]
             parsed_message["poll"] = {
