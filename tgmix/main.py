@@ -221,6 +221,11 @@ def main():
         help="Disable statistics computation and printing."
     )
     parser.add_argument(
+        "--no-mark_media",
+        action="store_true",
+        help="Do not mark media files in the output."
+    )
+    parser.add_argument(
         '--mask-preset',
         nargs='+',
         metavar='PRESET',
@@ -258,6 +263,9 @@ def main():
 
     config = load_config(target_directory)
     masking_rules: dict | None = dict()
+
+    if args.no_mark_media:
+        config["mark_media"] = False
 
     if args.anonymize or config.get("anonymize", False):
         print("[*] Anonymization enabled.")
