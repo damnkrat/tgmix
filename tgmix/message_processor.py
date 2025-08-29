@@ -19,6 +19,7 @@ class Masking:
             r'\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}'
             r'[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}'
             r'[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}\b')
+        self.name_to_authors_map: dict[str, list] = {}
         self.enabled = enabled
 
     @staticmethod
@@ -108,6 +109,16 @@ class Masking:
 
         return text
 
+    def author(self, text: str):
+        if not self.enabled:
+            return text
+
+        author = self.name_to_authors_map.get(text, text)
+
+        if len(author) == 1:
+            return author[0]
+        return author
+
 
 class MessageProcessor:
     def __init__(self, target_dir: Path, media_dir: Path, mark_media: bool,
@@ -184,6 +195,8 @@ class MessageProcessor:
                 "name": next_message.get("from"),
                 "id": author_id
             }
+            self.masking.name_to_authors_map.setdefault(
+                next_message.get("from"), []).append(compact_id)
             author_counter += 1
 
         stitched_messages = []
@@ -365,12 +378,12 @@ class MessageProcessor:
         if file_name := self.media.process(message):
             parsed_message["content"]["media"] = file_name
         if "forwarded_from" in message:
-            parsed_message["forwarded_from"] = self.masking.apply(
+            parsed_message["forwarded_from"] = self.masking.author(
                 message["forwarded_from"])
         if "edited" in message:
             parsed_message["edited_time"] = message["edited"]
         if "author" in message:
-            parsed_message["post_author"] = self.masking.apply(
+            parsed_message["post_author"] = self.masking.author(
                 message["author"])
         if "paid_stars_amount" in message:
             parsed_message["media_unlock_stars"] = message[
@@ -420,6 +433,10 @@ class MessageProcessor:
 
     def parse_service_message(self, message: dict) -> dict:
         action_from = self.id_to_author_map.get(message.get("actor_id"))
+        if members := message.get("members", []):
+            members = [
+                self.masking.author(member) for member in message[
+                    "members"]]
 
         match message.get("action"):
             case "phone_call":
@@ -435,9 +452,6 @@ class MessageProcessor:
                     data["duration"] = message["duration_seconds"]
                 return data
             case "invite_to_group_call":
-                members = [
-                    self.masking.apply(member) for member in message[
-                        "members"]]
                 return {
                     "id": message["id"],
                     "type": "invite_to_group_call",
@@ -491,12 +505,9 @@ class MessageProcessor:
                     "type": "join_group_by_link",
                     "time": message["date"],
                     "from": action_from,
-                    "inviter": message["inviter"]
+                    "inviter": self.masking.author(message["inviter"])
                 }
             case "invite_members":
-                members = [
-                    self.masking.apply(member) for member in message[
-                        "members"]]
                 return {
                     "id": message["id"],
                     "type": "invite_members",
@@ -505,9 +516,6 @@ class MessageProcessor:
                     "members": members,
                 }
             case "remove_members":
-                members = [
-                    self.masking.apply(member) for member in message[
-                        "members"]]
                 return {
                     "id": message["id"],
                     "type": "remove_members",

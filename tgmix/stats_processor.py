@@ -34,7 +34,7 @@ def compute_chat_stats(chat: dict, raw_chat: dict) -> dict:
     chat_json = dumps(chat)
     raw_chat_json = dumps(raw_chat)
     pbar.update()
-    pbar.set_description("Counting media files")
+    pbar.set_description("Counting tokens for files")
     stats["raw_total_tokens"] = encoding.count(raw_chat_json)
     stats["total_tokens"] = encoding.count(chat_json)
     pbar.update()
