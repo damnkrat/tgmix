@@ -115,6 +115,8 @@ class Masking:
 
         author = self.name_to_authors_map.get(text, text)
 
+        if not author:
+            return text
         if len(author) == 1:
             return author[0]
         return author
