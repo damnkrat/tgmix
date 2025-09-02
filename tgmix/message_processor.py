@@ -11,16 +11,21 @@ from tgmix.media_processor import Media
 class Masking:
     def __init__(self, rules: dict | None, enabled: bool):
         self.rules = rules
-        self.rules["regex"] = {
-            re.compile(rule): placeholder
-            for rule, placeholder in rules["regex"].items()}
-
         self.email_re = re.compile(
             r'\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}'
             r'[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}'
             r'[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}\b')
         self.name_to_authors_map: dict[str, list] = {}
         self.enabled = enabled
+
+        if not rules.get("regex"):
+            return
+
+        for rule, placeholder in rules["regex"].items():
+            try:
+                self.rules["regex"] = re.compile(rule)
+            except re.error as e:
+                print(f"[!] Warning: Invalid regex '{rule}'. {e}")
 
     @staticmethod
     def _replace_phone_numbers(text: str, placeholder: str,
@@ -257,14 +262,9 @@ class MessageProcessor:
             return next_id
 
         next_message = source_messages[next_id]
-        while (self.check_attributes(message, next_message,
-                                ("from_id", "forwarded_from", "date_unixtime"))
-               and (self.check_attributes(message, next_message, ("type",))
-                    and message.get("type") == "message")
-               and ((self.check_attributes(message, next_message,
-                                           has=("text",))
-                     or (parsed_message["content"].get("media")
-                   and self.media.detect(next_message))))):
+        while self.check_attributes(
+                message, next_message,
+                ("from_id", "forwarded_from", "date_unixtime")):
 
             self.pbar.update()
 
