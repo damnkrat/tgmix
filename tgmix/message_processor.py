@@ -136,8 +136,7 @@ class MessageProcessor:
         self.masking = Masking(masking_rules, do_anonymise)
         self.id_alias_map = {}
 
-    @staticmethod
-    def format_text_entities_to_markdown(entities: list) -> str:
+    def format_text_entities_to_markdown(self, entities: list) -> str:
         """
         Converts text_entities to Markdown.
         """
@@ -145,6 +144,8 @@ class MessageProcessor:
             return ""
         if isinstance(entities, str):
             return entities
+
+        masking_presets = self.masking.rules["presets"]
 
         markdown_parts = []
         for entity in entities:
@@ -171,14 +172,35 @@ class MessageProcessor:
                 case "pre":
                     markdown_parts.append(f"```{entity.get('language', '')}\n"
                                           f"{text}\n```")
-                case "link":
-                    markdown_parts.append(text)
                 case "text_link":
-                    url = entity.get("href", "#")
-                    markdown_parts.append(f"[{text}]({url})")
-                case "mention":
+                    markdown_parts.append(f"[{entity.get('text')}]"
+                                          f"({entity.get('href', '#')})")
+                case "email":
+                    if self.masking.enabled and (
+                            mask := masking_presets.get("email")):
+                        markdown_parts.append(mask)
+                        continue
+                    markdown_parts.append(text)
+                case "phone":
+                    if self.masking.enabled and (
+                            mask := masking_presets.get("phone")):
+                        markdown_parts.append(mask)
+                        continue
+                    markdown_parts.append(text)
+                case "bot_command" | "link":
+                    markdown_parts.append(text)
+                case "mention" | "mention_name":
+                    if self.masking.enabled and (
+                            mask := masking_presets.get("authors")):
+                        if author_id := self.id_to_author_map.get(
+                                f"user{text}"):
+                            markdown_parts.append(f"[{author_id}]")
+                            continue
+                        markdown_parts.append(mask)
+                        continue
                     markdown_parts.append(text)
                 case _:  # plain and others
+                    print(f"[!] Warning: Unknown entity type '{entity_type}'")
                     markdown_parts.append(text)
 
         return "".join(markdown_parts)
