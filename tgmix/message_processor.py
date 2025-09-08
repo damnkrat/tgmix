@@ -99,7 +99,7 @@ class Masking:
 
         if "phone" in preset_rules:
             placeholder = preset_rules["phone"]
-            region = self.rules.get("default_phone_region", "US")
+            region = self.rules.get("default_phone_region", "RU")
 
             text = self._replace_phone_numbers(text, placeholder, region)
             text = self._replace_phone_numbers(text, placeholder, None)
@@ -145,7 +145,7 @@ class MessageProcessor:
         if isinstance(entities, str):
             return entities
 
-        masking_presets = self.masking.rules["presets"]
+        masking_presets = self.masking.rules.get("presets")
 
         markdown_parts = []
         for entity in entities:
@@ -243,13 +243,11 @@ class MessageProcessor:
                     continue
 
                 stitched_messages.append(
-                    self.parse_service_message(
-                        next_message))
+                    self.parse_service_message(next_message))
                 next_id += 1
                 continue
 
-            parsed_msg = self.parse_message_data(
-                next_message)
+            parsed_msg = self.parse_message_data(next_message)
 
             next_id = self.combine_messages(
                 next_message, next_id, parsed_msg,
@@ -444,6 +442,16 @@ class MessageProcessor:
                                 "data": button["data"],
                             }
                         )
+                    elif button["type"] == "url":
+                        parsed_message["inline_buttons"].append(
+                            {
+                                "text": self.masking.apply(button["text"]),
+                                "url": button["data"],
+                            }
+                        )
+                    else:
+                        print(f"[!] Warning: Unknown inline button type "
+                              f"'{button['type']}'")
         if "reactions" in message:
             parsed_message["reactions"] = []
             for reaction in message["reactions"]:
