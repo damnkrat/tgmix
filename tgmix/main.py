@@ -62,8 +62,9 @@ def create_summary_block(is_transcribed: bool = False,
             "format_description":
                 "JSON object containing chat metadata and a list of messages. "
                 "Each message uses an `author_id` to "
-                "reference an author in the map, timestamp, Markdown text, "
-                "and media data",
+                "reference an author in the map, timestamp, "
+                "and media data. Text is formated in Markdown. "
+                "special cases: __underline__, ||spoiler||,",
             "usage_guidelines": {
                 "main_principle":
                     "Process this JSON together with any attached media "

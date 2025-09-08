@@ -187,8 +187,6 @@ class MessageProcessor:
                         markdown_parts.append(mask)
                         continue
                     markdown_parts.append(text)
-                case "bot_command" | "link":
-                    markdown_parts.append(text)
                 case "mention" | "mention_name":
                     if self.masking.enabled and (
                             mask := masking_presets.get("authors")):
@@ -198,6 +196,19 @@ class MessageProcessor:
                             continue
                         markdown_parts.append(mask)
                         continue
+                    markdown_parts.append(text)
+                case "underline":
+                    markdown_parts.append(f"<u>{text}</u>")
+                case "spoiler":
+                    markdown_parts.append(f"||{text}||")
+                case "custom_emoji":
+                    markdown_parts.append(f"[{entity['document_id']}]")
+                case "bank_card":
+                    # TODO: Masking support for bank cards
+                    markdown_parts.append(text)
+                case "blockquote":
+                    markdown_parts.append(f"> {text}")
+                case "bot_command" | "link" | "hashtag":
                     markdown_parts.append(text)
                 case _:  # plain and others
                     print(f"[!] Warning: Unknown entity type '{entity_type}'")
