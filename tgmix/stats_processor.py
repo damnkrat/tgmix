@@ -21,13 +21,13 @@ def compute_chat_stats(chat: dict, raw_chat: dict) -> dict:
     encoding = openai.o200k_base()
 
     for message in tqdm(messages, desc="Counting media in messages"):
-        if "media" not in message.get("content", {}):
+        if "media" not in message:
             continue
 
-        if isinstance(message["content"]["media"], str):
+        if isinstance(message["media"], str):
             stats["media_count"] += 1
         else:
-            stats["media_count"] += len(message["content"]["media"])
+            stats["media_count"] += len(message["media"])
 
     # Map author IDs to names for the final stats report
     pbar = tqdm(total=2, desc="Dumping chats for stats")

@@ -295,19 +295,19 @@ class MessageProcessor:
                     next_message.get("text")))
 
             if next_text:
-                if not parsed_message["content"].get("text"):
-                    parsed_message["content"]["text"] = next_text
+                if not parsed_message.get("text"):
+                    parsed_message["text"] = next_text
                 else:
-                    parsed_message["content"]["text"] += f"\n\n{next_text}"
+                    parsed_message["text"] += f"\n\n{next_text}"
 
             if file_name := self.media.process(next_message):
-                if isinstance(parsed_message["content"].get("media"), str):
-                    parsed_message["content"]["media"] = [
-                        parsed_message["content"]["media"]]
-                elif not parsed_message["content"].get("media"):
-                    parsed_message["content"]["media"] = []
+                if isinstance(parsed_message.get("media"), str):
+                    parsed_message["media"] = [
+                        parsed_message["media"]]
+                elif not parsed_message.get("media"):
+                    parsed_message["media"] = []
 
-                parsed_message["content"]["media"].append(file_name)
+                parsed_message["media"].append(file_name)
 
             self.combine_reactions(next_message, parsed_message)
 
@@ -389,18 +389,17 @@ class MessageProcessor:
         parsed_message = {
             "id": message["id"],
             "time": message["date"],
-            "author_id": self.id_to_author_map.get(message.get("from_id")),
-            "content": {}
+            "author_id": self.id_to_author_map.get(message.get("from_id"))
         }
 
         if message.get("text"):
-            parsed_message["content"]["text"] = self.masking.apply(
+            parsed_message["text"] = self.masking.apply(
                 self.format_text_entities_to_markdown(message["text"]))
         if "reply_to_message_id" in message:
             parsed_message["reply_to_message_id"] = message[
                 "reply_to_message_id"]
         if file_name := self.media.process(message):
-            parsed_message["content"]["media"] = file_name
+            parsed_message["media"] = file_name
         if "forwarded_from" in message:
             parsed_message["forwarded_from"] = self.masking.author(
                 message["forwarded_from"])
