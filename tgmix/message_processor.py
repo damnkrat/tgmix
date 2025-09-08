@@ -484,8 +484,7 @@ class MessageProcessor:
         action_from = self.id_to_author_map.get(message.get("actor_id"))
         if members := message.get("members", []):
             members = [
-                self.masking.author(member) for member in message[
-                    "members"]]
+                self.masking.author(member) for member in message["members"]]
 
         match message.get("action"):
             case "phone_call":
@@ -571,6 +570,30 @@ class MessageProcessor:
                     "time": message["date"],
                     "from": action_from,
                     "members": members,
+                }
+            case "create_channel":
+                return {
+                    "id": message["id"],
+                    "type": "create_channel",
+                    "time": message["date"],
+                    "from": action_from,
+                    "title": message["title"],
+                }
+            case "edit_group_title":
+                return {
+                    "id": message["id"],
+                    "type": "edit_group_title",
+                    "time": message["date"],
+                    "from": action_from,
+                    "title": message["title"],
+                }
+            case "edit_group_photo":
+                return {
+                    "id": message["id"],
+                    "type": "edit_group_photo",
+                    "time": message["date"],
+                    "from": action_from,
+                    "photo": message["photo"],
                 }
 
         print(f"[!] Unhandled service message({message['id']}): "
