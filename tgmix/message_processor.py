@@ -423,6 +423,13 @@ class MessageProcessor:
                 "closed": message["poll"]["closed"],
                 "answers": answers,
             }
+        if "contact_information" in message:
+            if self.masking.enabled and (
+                    self.masking.rules["presets"].get("phone")):
+                parsed_message["contact_information"] = "[CONTACT]"
+            else:
+                parsed_message["contact_information"] = message[
+                    "contact_information"]
         if "inline_bot_buttons" in message:
             parsed_message["inline_buttons"] = []
 
