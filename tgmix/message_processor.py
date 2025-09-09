@@ -21,11 +21,13 @@ class Masking:
         if not rules.get("regex"):
             return
 
+        rules_regex = {}
         for rule, placeholder in rules["regex"].items():
             try:
-                self.rules["regex"] = re.compile(rule)
+                rules_regex.update({re.compile(rule): placeholder})
             except re.error as e:
                 print(f"[!] Warning: Invalid regex '{rule}'. {e}")
+        self.rules["regex"] = rules_regex
 
     @staticmethod
     def _replace_phone_numbers(text: str, placeholder: str,
