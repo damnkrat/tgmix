@@ -218,7 +218,8 @@ class MessageProcessor:
 
         return "".join(markdown_parts)
 
-    def stitch_messages(self, source_messages: list) -> tuple[list, dict]:
+    def stitch_messages(
+            self, source_messages: list) -> tuple[list, dict, bool]:
         """
         Step 1: Iterates through messages, gathers "raw" parts,
         and then parses them at once. Returns processed messages and maps.
@@ -269,7 +270,7 @@ class MessageProcessor:
             stitched_messages.append(parsed_msg)
 
         self.pbar.close()
-        return stitched_messages, author_map
+        return stitched_messages, author_map, self.masking.enabled
 
     @staticmethod
     def check_attributes(message1: dict, message2: dict,

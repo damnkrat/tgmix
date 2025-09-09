@@ -129,13 +129,13 @@ def run_processing(target_dir: Path, config: dict,
         do_anonymise)
 
     # Stitch messages together
-    stitched_messages, author_map = (
+    stitched_messages, author_map, is_anonymised = (
         message_processor.stitch_messages(raw_chat["messages"]))
 
     message_processor.fix_reply_ids(stitched_messages)
 
     chat_name = raw_chat.get("name")
-    if masking_rules and ("authors" in masking_rules.get("presets", {})):
+    if is_anonymised and ("authors" in masking_rules.get("presets", {})):
         template = masking_rules["presets"]["authors"]
         print("[*] Anonymizing author names...")
 
