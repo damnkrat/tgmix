@@ -129,6 +129,11 @@ def run_processing(target_dir: Path, config: dict,
 
     media_dir.mkdir(exist_ok=True)
     raw_chat = loads(open(export_json_path, encoding="utf-8").read())
+
+    if not raw_chat.get("messages"):
+        print("[!] Error: No messages found in the export.")
+        return {}, raw_chat
+
     message_processor = MessageProcessor(
         target_dir, media_dir, config["mark_media"], masking_rules,
         do_anonymise)
