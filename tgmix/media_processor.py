@@ -52,9 +52,11 @@ class Media:
         try:
             func(source_path, prepared_path)
         except (AudioMarkingError, VideoMarkingError, ImageMarkingError):
-            pass
+            print(f"[!] Failed to mark media: {source_path.name}")
+            self.copy_media_file(source_path, prepared_path)
         except InvalidMediaError:
             print(f"[!] Invalid media: {source_path.name}")
+            self.copy_media_file(source_path, prepared_path)
         except FFmpegProcessError:
             print("[!] Ffmpeg not found, disabling media marking.")
             self.do_mark_media = False
