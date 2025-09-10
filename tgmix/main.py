@@ -227,7 +227,7 @@ def main():
         help="Disable statistics computation and printing."
     )
     parser.add_argument(
-        "--no-mark_media",
+        "--no-mark-media",
         action="store_true",
         help="Do not mark media files in the output."
     )

@@ -23,18 +23,41 @@ class Media:
                 return key
         return ""
 
+    def check_path(self, filename: str):
+        try:
+            source_path = self.base_dir / filename
+            resolved_source = source_path.resolve(strict=True)
+            resolved_base = self.base_dir.resolve()
+        except FileNotFoundError:
+            print(f"[!] Skipped: File not found: {filename}")
+            return "NF", ""  # Not found
+        except Exception as e:
+            print(f"[!] Skipped (error resolving path for '{filename}'):\n"
+                  f"{e}")
+            return "NF", ""
+
+        if not resolved_source.is_relative_to(resolved_base):
+            print("[!] Security Warning: Blocked attempt to access a file "
+                  f"outside the base directory: {filename}")
+            return "OOB", resolved_source  # Out Of Bounds
+        if resolved_source.is_dir():
+            print(f"[!] Skipped: Path points to a directory: {filename}")
+            return "isdir", resolved_source
+
+        return "", resolved_source
+
     def process(self, message: dict) -> str | None:
         """
         Detects media in a message, processes it, and returns
-        structured information. (beta)
+        structured information.
         """
         if not (media_type := self.detect(message)):
-            return None
+            return
 
-        source_path = self.base_dir / message[media_type]
-        prepared_path = self.media_dir / source_path.name
+        filename = message.get(media_type)
+        if not isinstance(filename, str) or not filename:
+            return
 
-        filename = message[media_type]
         if filename in ("(File not included. "
                         "Change data exporting settings to download.)",
                         "(File exceeds maximum size. "
@@ -42,10 +65,17 @@ class Media:
                         "(File unavailable, please try again later)"):
             return "B"
 
+        output_code, resolved_source = self.check_path(filename)
+        if output_code:
+            return output_code
+
+        prepared_path = self.media_dir / resolved_source.name
+
         if not self.do_mark_media:
+            self.copy_media_file(resolved_source, prepared_path)
             return filename
 
-        self.mark_media(source_path, prepared_path)
+        self.mark_media(resolved_source, prepared_path)
         return filename
 
     def _mark_media(self, func, source_path: Path, prepared_path: Path) -> None:
