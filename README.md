@@ -53,7 +53,7 @@ pip install -U tgmix
 #### From GitHub (For development)
 Install `tgmix` directly from this repository:
 ```bash
-pip install git+https://github.com/damnkrat/tgmix.git
+pip install -U git+https://github.com/damnkrat/tgmix.git
 ```
 
 ## How to Use
