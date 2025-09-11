@@ -174,9 +174,6 @@ class MessageProcessor:
                 case "pre":
                     markdown_parts.append(f"```{entity.get('language', '')}\n"
                                           f"{text}\n```")
-                case "text_link":
-                    markdown_parts.append(f"[{entity.get('text')}]"
-                                          f"({entity.get('href', '#')})")
                 case "email":
                     if self.masking.enabled and (
                             mask := masking_presets.get("email")):
@@ -206,11 +203,28 @@ class MessageProcessor:
                 case "custom_emoji":
                     markdown_parts.append(f"[{entity['document_id']}]")
                 case "bank_card":
-                    # TODO: Masking support for bank cards
+                    if self.masking.enabled and (
+                            mask := masking_presets.get("bank_card")):
+                        markdown_parts.append(mask)
+                        continue
                     markdown_parts.append(text)
                 case "blockquote":
                     markdown_parts.append(f"> {text}")
-                case "bot_command" | "link" | "hashtag":
+                case "link":
+                    if self.masking.enabled and (
+                            mask := masking_presets.get("link")):
+                        markdown_parts.append(mask)
+                        continue
+                    markdown_parts.append(text)
+                case "text_link":
+                    if self.masking.enabled and (
+                            mask := masking_presets.get("link")):
+                        markdown_parts.append(f"[{entity.get('text')}]"
+                                              f"({mask})")
+                        continue
+                    markdown_parts.append(f"[{entity.get('text')}]"
+                                          f"({entity.get('href', '#')})")
+                case "bot_command" | "hashtag":
                     markdown_parts.append(text)
                 case _:  # plain and others
                     print(f"[!] Warning: Unknown entity type '{entity_type}'")
