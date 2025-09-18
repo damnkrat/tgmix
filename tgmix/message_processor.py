@@ -224,7 +224,7 @@ class MessageProcessor:
                         continue
                     markdown_parts.append(f"[{entity.get('text')}]"
                                           f"({entity.get('href', '#')})")
-                case "bot_command" | "hashtag":
+                case "bot_command" | "hashtag" | "cashtag":
                     markdown_parts.append(text)
                 case _:  # plain and others
                     print(f"[!] Warning: Unknown entity type '{entity_type}'")
@@ -455,6 +455,8 @@ class MessageProcessor:
             else:
                 parsed_message["contact_information"] = message[
                     "contact_information"]
+        if "via_bot" in message:
+            parsed_message["via_bot"] = message["via_bot"]
         if "inline_bot_buttons" in message:
             parsed_message["inline_buttons"] = []
 
@@ -465,19 +467,20 @@ class MessageProcessor:
                     elif button["type"] == "auth":
                         parsed_message["inline_buttons"].append(
                             {
-                                "type": "auth",
                                 "text": self.masking.apply(button["text"]),
                                 "data": button["data"],
-                            }
-                        )
+                            })
                     elif button["type"] == "url":
                         parsed_message["inline_buttons"].append(
                             {
                                 "text": self.masking.apply(button["text"]),
                                 "url": button["data"],
-                            }
-                        )
+                            })
+                    elif button["type"] == "switch_inline_same":
+                        parsed_message["inline_buttons"].append(
+                            {"text": self.masking.apply(button["text"])})
                     else:
+                        parsed_message["inline_buttons"].append(button)
                         print(f"[!] Warning: Unknown inline button type "
                               f"'{button['type']}'")
         if "reactions" in message:
