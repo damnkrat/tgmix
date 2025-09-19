@@ -83,6 +83,8 @@ class Masking:
         """Applies a set of masking rules to the given text."""
         if (not self.enabled) or (not self.rules) or (not text):
             return text
+        if not isinstance(text, str):
+            return text
 
         # Order of application: Literals -> Presets -> Regex
         # This is to prevent a generic regex
