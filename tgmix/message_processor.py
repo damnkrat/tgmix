@@ -6,6 +6,7 @@ import phonenumbers
 from tqdm import tqdm
 
 from tgmix.media_processor import Media
+from tgmix.utils import b64decode_forgiving
 
 
 class Masking:
@@ -461,8 +462,11 @@ class MessageProcessor:
         if "via_bot" in message:
             parsed_message["via_bot"] = message["via_bot"]
         if "inline_bot_buttons" in message:
-            parsed_message["inline_bot_buttons"] = self.parse_inline_buttons(
-                message)
+            parsed_message["inline_buttons"] = []
+            for button_group in message["inline_bot_buttons"]:
+                for button in button_group:
+                    parsed_message["inline_buttons"].append(
+                        self.parse_inline_button(button))
         if "reactions" in message:
             parsed_message["reactions"] = []
             for reaction in message["reactions"]:
@@ -479,37 +483,63 @@ class MessageProcessor:
 
         return parsed_message
 
-    def parse_inline_buttons(self, message: dict) -> list[dict]:
-        inline_buttons = []
+    def parse_inline_button(self, button) -> dict:
+        text = self.masking.apply(button["text"] or "")
 
-        for button_group in message["inline_bot_buttons"]:
-            for button in button_group:
-                if button["type"] == "callback":
-                    inline_buttons.append(button)
-                elif button["type"] == "auth":
-                    inline_buttons.append(
-                        {
-                            "text": self.masking.apply(button["text"]),
-                            "data": button["data"],
-                        })
-                elif button["type"] == "url":
-                    inline_buttons.append(
-                        {
-                            "text": self.masking.apply(button["text"]),
-                            "url": button["data"],
-                        })
-                elif button["type"] == "switch_inline_same":
-                    inline_buttons.append(
-                        {
-                            "type": button["type"],
-                            "text": self.masking.apply(button["text"]),
-                        })
-                else:
-                    inline_buttons.append(button)
-                    print(f"[!] Warning: Unknown inline button type "
-                          f"'{button['type']}'")
+        has_encoded_data = "dataBase64" in button
+        has_data = "data" in button
+        if has_data or has_encoded_data:
+            if has_encoded_data and not has_data:
+                button_data = b64decode_forgiving(button["dataBase64"])
+            elif has_encoded_data and has_data:
+                button_data = [
+                    b64decode_forgiving(button["dataBase64"]),
+                    button["data"]]
+            else:
+                button_data = button["data"]
+        else:
+            button_data = ""
 
-        return inline_buttons
+        if button["type"] == "callback":
+            return {
+                "type": button["type"],
+                "text": text,
+                "callback": button_data,
+            }
+        elif button["type"] == "auth":
+            return {
+                    "text": text,
+                    "data": button_data,
+                }
+        elif button["type"] == "url":
+                return {
+                    "text": text,
+                    "url": button_data,
+                }
+        elif button["type"] == "switch_inline_same":
+            return {
+                "type": button["type"],
+                "text": text,
+            }
+        elif button["type"] == "switch_inline":
+            data = {
+                "type": button["type"],
+                "text": text,
+            }
+            if button_data:
+                data["data"] = button_data
+
+            return data
+        elif button["type"] == "game":
+            return {
+                "type": button["type"],
+                "text": text,
+            }
+        else:
+            button["text"] = text
+            print("[!] Warning: Unknown inline button type "
+                  f"'{button['type']}'")
+            return button
 
     def parse_service_message(self, message: dict) -> dict:
         action_from = self.id_to_author_map.get(message.get("actor_id"))
