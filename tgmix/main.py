@@ -109,7 +109,7 @@ def parse_cli_dict(rules_list: list[str] | None) -> dict:
 
 def run_processing(target_dir: Path, config: dict,
                    masking_rules: dict | None, do_anonymise: bool,
-                   no_confirm_deletion: bool) -> tuple[dict, dict]:
+                   do_confirm_deletion: bool) -> tuple[dict, dict]:
     """Main processing logic for the export."""
     export_json_path = target_dir / config['export_json_file']
     if not export_json_path.exists():
@@ -119,7 +119,7 @@ def run_processing(target_dir: Path, config: dict,
 
     media_dir = target_dir / config['media_output_dir']
     if media_dir.exists():
-        if no_confirm_deletion and not input(
+        if do_confirm_deletion and not input(
                 f"\nMedia directory '{media_dir}' already exists.\n"
                 "Delete and continue? [Y/N]: ").lower() == "y":
             return {}, {}
@@ -260,6 +260,7 @@ def main():
     parser.add_argument(
         "--no-confirm-deletion",
         action="store_false",
+        dest="do_confirm_deletion",
         help=argparse.SUPPRESS
     )
 
@@ -311,7 +312,7 @@ def main():
     print(f"--- Starting TGMix on directory: {target_directory} ---")
     processed_chat, raw_chat = run_processing(
         target_directory, config, masking_rules, args.anonymize,
-        args.no_confirm_deletion)
+        args.do_confirm_deletion)
 
     if not processed_chat:
         return

@@ -478,7 +478,10 @@ class MessageProcessor:
                             })
                     elif button["type"] == "switch_inline_same":
                         parsed_message["inline_buttons"].append(
-                            {"text": self.masking.apply(button["text"])})
+                            {
+                                "type": button["type"],
+                                "text": self.masking.apply(button["text"]),
+                            })
                     else:
                         parsed_message["inline_buttons"].append(button)
                         print(f"[!] Warning: Unknown inline button type "
@@ -495,8 +498,7 @@ class MessageProcessor:
 
                 if reaction.get("recent"):
                     parsed_message["reactions"][-1][
-                        "recent"] = self.minimise_recent_reactions(
-                        reaction)
+                        "recent"] = self.minimise_recent_reactions(reaction)
 
         return parsed_message
 
