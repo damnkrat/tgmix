@@ -706,7 +706,7 @@ class MessageProcessor:
         print(f"[!] Unhandled service message({message['id']}): "
               f"{message['action']}")
         if self.masking.enabled:
-            return {
+            data = {
                 "id": message["id"],
                 "type": message.get("action"),
                 "time": message["date"],
@@ -715,6 +715,10 @@ class MessageProcessor:
                     "Not included due to unknown action "
                     "and anonymization enabled."
             }
+
+            if "members" in message:
+                data["members"] = members
+            return data
         return message
 
     def fix_reply_ids(self, messages: list) -> None:
