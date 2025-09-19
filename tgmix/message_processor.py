@@ -562,6 +562,17 @@ class MessageProcessor:
                 if "duration_seconds" in message:
                     data["duration"] = message["duration_seconds"]
                 return data
+            case "group_call":
+                data = {
+                    "id": message["id"],
+                    "type": "group_call",
+                    "time": message["date"],
+                    "from": action_from,
+                }
+
+                if "duration" in message:
+                    data["duration"] = message["duration"]
+                return data
             case "invite_to_group_call":
                 return {
                     "id": message["id"],
@@ -657,6 +668,39 @@ class MessageProcessor:
                     "time": message["date"],
                     "from": action_from,
                     "photo": message["photo"],
+                }
+            case "score_in_game":
+                return {
+                    "id": message["id"],
+                    "type": "score_in_game",
+                    "time": message["date"],
+                    "from": action_from,
+                    "score": message["score"],
+                }
+            case "topic_created":
+                return {
+                    "id": message["id"],
+                    "type": "topic_created",
+                    "time": message["date"],
+                    "from": action_from,
+                    "title": message["title"]
+                }
+            case "topic_edit":
+                return {
+                    "id": message["id"],
+                    "type": "topic_edit",
+                    "time": message["date"],
+                    "from": action_from,
+                    "title": message["new_title"],
+                    "icon_emoji_id": message["new_icon_emoji_id"],
+                }
+            case "boost_apply":
+                return {
+                    "id": message["id"],
+                    "type": "boost_apply",
+                    "time": message["date"],
+                    "from": action_from,
+                    "boosts": message["boosts"],
                 }
 
         print(f"[!] Unhandled service message({message['id']}): "
