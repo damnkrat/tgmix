@@ -201,7 +201,7 @@ class MessageProcessor:
                 case "spoiler":
                     markdown_parts.append(f"||{text}||")
                 case "custom_emoji":
-                    markdown_parts.append(f"[{entity['document_id']}]")
+                    markdown_parts.append(f"[emoji_{entity['document_id']}]")
                 case "bank_card":
                     if self.masking.enabled and (
                             mask := masking_presets.get("bank_card")):
@@ -438,16 +438,19 @@ class MessageProcessor:
             parsed_message["media_unlock_stars"] = message[
                 "paid_stars_amount"]
         if "poll" in message:
-            answers = [
-                self.masking.apply(answer["text"]) for answer in message[
-                    "poll"]["answers"]
-            ]
             parsed_message["poll"] = {
                 "question": self.masking.apply(
-                    message["poll"]["question"]),
+                    self.format_text_entities_to_markdown(
+                        message["poll"]["question"])),
                 "closed": message["poll"]["closed"],
-                "answers": answers,
+                "answers": [
+                    self.masking.apply(
+                        self.format_text_entities_to_markdown(answer["text"]))
+                    for answer in message["poll"]["answers"]],
             }
+            # sometimes text is messed up like this:
+            # ['What? ', {'type': 'custom_emoji', 'text': '🤔',
+            #             'document_id': '5443115090486246051'}, '']
         if "contact_information" in message:
             if self.masking.enabled and (
                     self.masking.rules["presets"].get("phone")):
