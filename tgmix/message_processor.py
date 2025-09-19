@@ -458,34 +458,8 @@ class MessageProcessor:
         if "via_bot" in message:
             parsed_message["via_bot"] = message["via_bot"]
         if "inline_bot_buttons" in message:
-            parsed_message["inline_buttons"] = []
-
-            for button_group in message["inline_bot_buttons"]:
-                for button in button_group:
-                    if button["type"] == "callback":
-                        parsed_message["inline_buttons"].append(button)
-                    elif button["type"] == "auth":
-                        parsed_message["inline_buttons"].append(
-                            {
-                                "text": self.masking.apply(button["text"]),
-                                "data": button["data"],
-                            })
-                    elif button["type"] == "url":
-                        parsed_message["inline_buttons"].append(
-                            {
-                                "text": self.masking.apply(button["text"]),
-                                "url": button["data"],
-                            })
-                    elif button["type"] == "switch_inline_same":
-                        parsed_message["inline_buttons"].append(
-                            {
-                                "type": button["type"],
-                                "text": self.masking.apply(button["text"]),
-                            })
-                    else:
-                        parsed_message["inline_buttons"].append(button)
-                        print(f"[!] Warning: Unknown inline button type "
-                              f"'{button['type']}'")
+            parsed_message["inline_bot_buttons"] = self.parse_inline_buttons(
+                message)
         if "reactions" in message:
             parsed_message["reactions"] = []
             for reaction in message["reactions"]:
@@ -501,6 +475,38 @@ class MessageProcessor:
                         "recent"] = self.minimise_recent_reactions(reaction)
 
         return parsed_message
+
+    def parse_inline_buttons(self, message: dict) -> list[dict]:
+        inline_buttons = []
+
+        for button_group in message["inline_bot_buttons"]:
+            for button in button_group:
+                if button["type"] == "callback":
+                    inline_buttons.append(button)
+                elif button["type"] == "auth":
+                    inline_buttons.append(
+                        {
+                            "text": self.masking.apply(button["text"]),
+                            "data": button["data"],
+                        })
+                elif button["type"] == "url":
+                    inline_buttons.append(
+                        {
+                            "text": self.masking.apply(button["text"]),
+                            "url": button["data"],
+                        })
+                elif button["type"] == "switch_inline_same":
+                    inline_buttons.append(
+                        {
+                            "type": button["type"],
+                            "text": self.masking.apply(button["text"]),
+                        })
+                else:
+                    inline_buttons.append(button)
+                    print(f"[!] Warning: Unknown inline button type "
+                          f"'{button['type']}'")
+
+        return inline_buttons
 
     def parse_service_message(self, message: dict) -> dict:
         action_from = self.id_to_author_map.get(message.get("actor_id"))
