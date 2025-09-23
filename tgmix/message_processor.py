@@ -6,6 +6,7 @@ import phonenumbers
 from tqdm import tqdm
 
 from tgmix.media_processor import Media
+from tgmix.utils import b64decode_forgiving
 
 
 class Masking:
@@ -81,6 +82,8 @@ class Masking:
     def apply(self, text: str) -> str:
         """Applies a set of masking rules to the given text."""
         if (not self.enabled) or (not self.rules) or (not text):
+            return text
+        if not isinstance(text, str):
             return text
 
         # Order of application: Literals -> Presets -> Regex
@@ -174,9 +177,6 @@ class MessageProcessor:
                 case "pre":
                     markdown_parts.append(f"```{entity.get('language', '')}\n"
                                           f"{text}\n```")
-                case "text_link":
-                    markdown_parts.append(f"[{entity.get('text')}]"
-                                          f"({entity.get('href', '#')})")
                 case "email":
                     if self.masking.enabled and (
                             mask := masking_presets.get("email")):
@@ -204,13 +204,30 @@ class MessageProcessor:
                 case "spoiler":
                     markdown_parts.append(f"||{text}||")
                 case "custom_emoji":
-                    markdown_parts.append(f"[{entity['document_id']}]")
+                    markdown_parts.append(f"[emoji_{entity['document_id']}]")
                 case "bank_card":
-                    # TODO: Masking support for bank cards
+                    if self.masking.enabled and (
+                            mask := masking_presets.get("bank_card")):
+                        markdown_parts.append(mask)
+                        continue
                     markdown_parts.append(text)
                 case "blockquote":
                     markdown_parts.append(f"> {text}")
-                case "bot_command" | "link" | "hashtag":
+                case "link":
+                    if self.masking.enabled and (
+                            mask := masking_presets.get("link")):
+                        markdown_parts.append(mask)
+                        continue
+                    markdown_parts.append(text)
+                case "text_link":
+                    if self.masking.enabled and (
+                            mask := masking_presets.get("link")):
+                        markdown_parts.append(f"[{entity.get('text')}]"
+                                              f"({mask})")
+                        continue
+                    markdown_parts.append(f"[{entity.get('text')}]"
+                                          f"({entity.get('href', '#')})")
+                case "bot_command" | "hashtag" | "cashtag":
                     markdown_parts.append(text)
                 case _:  # plain and others
                     print(f"[!] Warning: Unknown entity type '{entity_type}'")
@@ -424,16 +441,19 @@ class MessageProcessor:
             parsed_message["media_unlock_stars"] = message[
                 "paid_stars_amount"]
         if "poll" in message:
-            answers = [
-                self.masking.apply(answer["text"]) for answer in message[
-                    "poll"]["answers"]
-            ]
             parsed_message["poll"] = {
                 "question": self.masking.apply(
-                    message["poll"]["question"]),
+                    self.format_text_entities_to_markdown(
+                        message["poll"]["question"])),
                 "closed": message["poll"]["closed"],
-                "answers": answers,
+                "answers": [
+                    self.masking.apply(
+                        self.format_text_entities_to_markdown(answer["text"]))
+                    for answer in message["poll"]["answers"]],
             }
+            # sometimes text is messed up like this:
+            # ['What? ', {'type': 'custom_emoji', 'text': '🤔',
+            #             'document_id': '5443115090486246051'}, '']
         if "contact_information" in message:
             if self.masking.enabled and (
                     self.masking.rules["presets"].get("phone")):
@@ -441,31 +461,14 @@ class MessageProcessor:
             else:
                 parsed_message["contact_information"] = message[
                     "contact_information"]
+        if "via_bot" in message:
+            parsed_message["via_bot"] = message["via_bot"]
         if "inline_bot_buttons" in message:
             parsed_message["inline_buttons"] = []
-
             for button_group in message["inline_bot_buttons"]:
                 for button in button_group:
-                    if button["type"] == "callback":
-                        parsed_message["inline_buttons"].append(button)
-                    elif button["type"] == "auth":
-                        parsed_message["inline_buttons"].append(
-                            {
-                                "type": "auth",
-                                "text": self.masking.apply(button["text"]),
-                                "data": button["data"],
-                            }
-                        )
-                    elif button["type"] == "url":
-                        parsed_message["inline_buttons"].append(
-                            {
-                                "text": self.masking.apply(button["text"]),
-                                "url": button["data"],
-                            }
-                        )
-                    else:
-                        print(f"[!] Warning: Unknown inline button type "
-                              f"'{button['type']}'")
+                    parsed_message["inline_buttons"].append(
+                        self.parse_inline_button(button))
         if "reactions" in message:
             parsed_message["reactions"] = []
             for reaction in message["reactions"]:
@@ -478,10 +481,67 @@ class MessageProcessor:
 
                 if reaction.get("recent"):
                     parsed_message["reactions"][-1][
-                        "recent"] = self.minimise_recent_reactions(
-                        reaction)
+                        "recent"] = self.minimise_recent_reactions(reaction)
 
         return parsed_message
+
+    def parse_inline_button(self, button) -> dict:
+        text = self.masking.apply(button["text"] or "")
+
+        has_encoded_data = "dataBase64" in button
+        has_data = "data" in button
+        if has_data or has_encoded_data:
+            if has_encoded_data and not has_data:
+                button_data = b64decode_forgiving(button["dataBase64"])
+            elif has_encoded_data and has_data:
+                button_data = [
+                    b64decode_forgiving(button["dataBase64"]),
+                    button["data"]]
+            else:
+                button_data = button["data"]
+        else:
+            button_data = ""
+
+        if button["type"] == "callback":
+            return {
+                "type": button["type"],
+                "text": text,
+                "callback": button_data,
+            }
+        elif button["type"] == "auth":
+            return {
+                    "text": text,
+                    "data": button_data,
+                }
+        elif button["type"] == "url":
+                return {
+                    "text": text,
+                    "url": button_data,
+                }
+        elif button["type"] == "switch_inline_same":
+            return {
+                "type": button["type"],
+                "text": text,
+            }
+        elif button["type"] == "switch_inline":
+            data = {
+                "type": button["type"],
+                "text": text,
+            }
+            if button_data:
+                data["data"] = button_data
+
+            return data
+        elif button["type"] == "game":
+            return {
+                "type": button["type"],
+                "text": text,
+            }
+        else:
+            button["text"] = text
+            print("[!] Warning: Unknown inline button type "
+                  f"'{button['type']}'")
+            return button
 
     def parse_service_message(self, message: dict) -> dict:
         action_from = self.id_to_author_map.get(message.get("actor_id"))
@@ -501,6 +561,17 @@ class MessageProcessor:
 
                 if "duration_seconds" in message:
                     data["duration"] = message["duration_seconds"]
+                return data
+            case "group_call":
+                data = {
+                    "id": message["id"],
+                    "type": "group_call",
+                    "time": message["date"],
+                    "from": action_from,
+                }
+
+                if "duration" in message:
+                    data["duration"] = message["duration"]
                 return data
             case "invite_to_group_call":
                 return {
@@ -598,11 +669,44 @@ class MessageProcessor:
                     "from": action_from,
                     "photo": message["photo"],
                 }
+            case "score_in_game":
+                return {
+                    "id": message["id"],
+                    "type": "score_in_game",
+                    "time": message["date"],
+                    "from": action_from,
+                    "score": message["score"],
+                }
+            case "topic_created":
+                return {
+                    "id": message["id"],
+                    "type": "topic_created",
+                    "time": message["date"],
+                    "from": action_from,
+                    "title": message["title"]
+                }
+            case "topic_edit":
+                return {
+                    "id": message["id"],
+                    "type": "topic_edit",
+                    "time": message["date"],
+                    "from": action_from,
+                    "title": message["new_title"],
+                    "icon_emoji_id": message["new_icon_emoji_id"],
+                }
+            case "boost_apply":
+                return {
+                    "id": message["id"],
+                    "type": "boost_apply",
+                    "time": message["date"],
+                    "from": action_from,
+                    "boosts": message["boosts"],
+                }
 
         print(f"[!] Unhandled service message({message['id']}): "
               f"{message['action']}")
         if self.masking.enabled:
-            return {
+            data = {
                 "id": message["id"],
                 "type": message.get("action"),
                 "time": message["date"],
@@ -611,6 +715,10 @@ class MessageProcessor:
                     "Not included due to unknown action "
                     "and anonymization enabled."
             }
+
+            if "members" in message:
+                data["members"] = members
+            return data
         return message
 
     def fix_reply_ids(self, messages: list) -> None:

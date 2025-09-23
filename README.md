@@ -24,14 +24,13 @@ The development of TGMix is planned in stages. Here is what's available now and 
 
 -   [x] **Significant Token Reduction**: By simplifying the structure and removing redundant metadata from the original Telegram export, TGMix **reduces the final token count by up to 3 times**.
 -   [x] **Message Stitching**: Automatically combines messages sent by the same user in quick succession into a single, coherent entry.
--   [x] **Basic Media Handling**: Puts all media files into a separate, organized folder.
+-   [x] **Media Marking**: Uses **[MarkMyMedia-LLM](https://github.com/LaVashikk/MarkMyMedia-LLM)** to automatically add filenames to media like videos and voice messages, improving context for AI analysis.
 -   [x] **AI-Ready JSON Output**: Produces a single, clean `tgmix_output.json` file with a simple structure, including a map of authors and fixed reply IDs.
 -   [x] **Advanced Anonymization**: A flexible system for masking sensitive data.
 
 #### Planned for Future Releases
 
--   [ ] **Advanced Media Processing**: Optional conversion of voice/video messages and automatic transcription into text.
--   [ ] **Improvements for multimodal LLMs**: Optional inclusion of filenames in media for better context understanding via [MarkMyMedia-LLM](https://github.com/LaVashikk/MarkMyMedia-LLM).
+-   [ ] **Advanced Media Processing**: Optional conversion of voice/video messages into text via transcription.
 -   [ ] **Official Package Manager Support**: Easy installation via AUR.
 
 ## Requirements
@@ -154,6 +153,8 @@ You can control TGMix directly from the command line. Flags and options provided
     Enables the anonymization feature for the current run.
 -   `--no-stats`
     Disables the computation and printing of processing statistics at the end of the run.
+-   `--no-mark-media`
+    Disables media marking. Files will be copied to the output directory without changes.
 -   `--mask-preset <preset1> <preset2> ...`
     Overrides the list of active presets from the config file. Only the presets you list here will be used.
 -   `--mask-literal "phrase:replacement"`

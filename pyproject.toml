@@ -1,11 +1,11 @@
 [project]
 name = "tgmix"
-version = "0.3.0"
+version = "0.9.0"
 description = "A tool to process Telegram chat exports into an AI-friendly format, inspired by Repomix."
 requires-python = ">=3.10"
 readme = "README.md"
 dependencies = [
-    "phonenumbers>=9.0.12",
+    "phonenumbers>=9.0.14",
     "rs-bpe>=0.1.0",
     "tqdm>=4.67.1",
     "ujson>=5.11.0",

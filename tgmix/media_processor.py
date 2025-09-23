@@ -78,7 +78,8 @@ class Media:
         self.mark_media(resolved_source, prepared_path)
         return filename
 
-    def _mark_media(self, func, source_path: Path, prepared_path: Path) -> None:
+    def _mark_media(self, func, source_path: Path,
+                    prepared_path: Path) -> None:
         try:
             func(source_path, prepared_path)
         except (AudioMarkingError, VideoMarkingError, ImageMarkingError):
