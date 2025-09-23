@@ -119,9 +119,9 @@ def run_processing(target_dir: Path, config: dict,
 
     media_dir = target_dir / config['media_output_dir']
     if media_dir.exists():
-        if do_confirm_deletion and not input(
+        if do_confirm_deletion and input(
                 f"\nMedia directory '{media_dir}' already exists.\n"
-                "Delete and continue? [Y/N]: ").lower() == "y":
+                "Delete and continue? [Y/N]: ").lower() != "y":
             return {}, {}
 
         print(f"[*] Cleaning up '{config['media_output_dir']}'...")
