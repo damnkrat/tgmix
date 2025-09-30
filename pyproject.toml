@@ -10,6 +10,7 @@ dependencies = [
     "tqdm>=4.67.1",
     "ujson>=5.11.0",
     "MarkMyMedia>=1.1.0",
+    "faster-whisper>=0.10.0",
 ]
 license = { file="LICENSE" }
 keywords = ["telegram", "chat", "export", "llm", "ai", "dataset", "nlp", "chatgpt", "gemini", "grok", "claude", "llama"]

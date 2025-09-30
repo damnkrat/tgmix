@@ -134,8 +134,9 @@ class Masking:
 
 class MessageProcessor:
     def __init__(self, target_dir: Path, media_dir: Path, mark_media: bool,
-                 masking_rules: dict, do_anonymise: bool) -> None:
-        self.media = Media(target_dir, media_dir, mark_media)
+                 masking_rules: dict, do_anonymise: bool,
+                 config: dict) -> None:
+        self.media = Media(target_dir, media_dir, mark_media, config)
         self.pbar = None
         self.id_to_author_map = {}
         self.masking = Masking(masking_rules, do_anonymise)
@@ -235,6 +236,39 @@ class MessageProcessor:
 
         return "".join(markdown_parts)
 
+    def _collect_media_for_transcription(
+            self, messages: list[dict]) -> dict[Path, int]:
+        """
+        Проходит по всем сообщениям и собирает пути к файлам для транскрибации.
+        """
+        paths_to_transcribe = {}
+        for message in tqdm(messages, desc="Scanning media for transcription"):
+            if not (media_type := self.media.detect(message)):
+                continue
+
+            filename = message.get(media_type)
+            if not isinstance(filename, str) or not filename:
+                continue
+
+            if filename in ("(File not included. "
+                            "Change data exporting settings to download.)",
+                            "(File exceeds maximum size. "
+                            "Change data exporting settings to download.)",
+                            "(File unavailable, please try again later)"):
+                continue
+
+            # check_path вернет resolved_source
+            _, resolved_source = self.media.check_path(filename)
+            if not resolved_source:
+                continue
+
+            file_type = resolved_source.parent.name
+            if file_type in (
+                    "voice_messages", "round_video_messages", "video_files"):
+                paths_to_transcribe[resolved_source] = message["duration_seconds"]
+
+        return paths_to_transcribe
+
     def stitch_messages(
             self, source_messages: list) -> tuple[list, dict, bool]:
         """
@@ -259,6 +293,14 @@ class MessageProcessor:
                 next_message.get("from"), []).append(compact_id)
             author_counter += 1
 
+        transcription_cache = {}
+        if self.media.config.get("transcribe_media", False):
+            if files_to_process := self._collect_media_for_transcription(
+                source_messages
+            ):
+                transcription_cache = self.media.batch_transcribe(
+                    files_to_process)
+
         stitched_messages = []
 
         next_id = 0
@@ -278,11 +320,12 @@ class MessageProcessor:
                 next_id += 1
                 continue
 
-            parsed_msg = self.parse_message_data(next_message)
+            parsed_msg = self.parse_message_data(next_message,
+                                                 transcription_cache)
 
             next_id = self.combine_messages(
                 next_message, next_id, parsed_msg,
-                source_messages
+                source_messages, transcription_cache
             )
             stitched_messages.append(parsed_msg)
 
@@ -307,7 +350,8 @@ class MessageProcessor:
 
     def combine_messages(self, message: dict,
                          message_id: int, parsed_message: dict,
-                         source_messages: list) -> int:
+                         source_messages: list,
+                         transcription_cache: dict) -> int:
         next_id = message_id + 1
         if not len(source_messages) > next_id:
             return next_id
@@ -329,7 +373,12 @@ class MessageProcessor:
                 else:
                     parsed_message["text"] += f"\n\n{next_text}"
 
-            if file_name := self.media.process(next_message):
+            file_name, transcribed_text = self.media.process(
+                next_message, transcription_cache)
+            if transcribed_text:
+                parsed_message["to_text"] = transcribed_text.strip()
+
+            if file_name:
                 if isinstance(parsed_message.get("media"), str):
                     parsed_message["media"] = [
                         parsed_message["media"]]
@@ -413,7 +462,8 @@ class MessageProcessor:
 
         return recent
 
-    def parse_message_data(self, message: dict) -> dict:
+    def parse_message_data(self, message: dict,
+                           transcription_cache: dict) -> dict:
         """Parses a single message using the author map."""
         parsed_message = {
             "id": message["id"],
@@ -427,8 +477,13 @@ class MessageProcessor:
         if "reply_to_message_id" in message:
             parsed_message["reply_to_message_id"] = message[
                 "reply_to_message_id"]
-        if file_name := self.media.process(message):
+
+        file_name, transcribed_text = self.media.process(
+            message, transcription_cache)
+        if file_name:
             parsed_message["media"] = file_name
+        if transcribed_text:
+            parsed_message["to_text"] = transcribed_text.strip()
         if "forwarded_from" in message:
             parsed_message["forwarded_from"] = self.masking.author(
                 message["forwarded_from"])

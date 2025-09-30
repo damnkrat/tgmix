@@ -136,7 +136,7 @@ def run_processing(target_dir: Path, config: dict,
 
     message_processor = MessageProcessor(
         target_dir, media_dir, config["mark_media"], masking_rules,
-        do_anonymise)
+        do_anonymise, config)
 
     # Stitch messages together
     stitched_messages, author_map, is_anonymised = (
@@ -163,7 +163,7 @@ def run_processing(target_dir: Path, config: dict,
 
     # Format and save the final result
     processed_chat = create_summary_block(
-        False,
+        config.get("transcribe_media", False),
         "(File not included. "
         "Change data exporting settings to download.)" in str(raw_chat)
     )
@@ -227,6 +227,11 @@ def main():
              "Rules are taken from config or overridden by CLI flags."
     )
     parser.add_argument(
+        "--transcribe",
+        action="store_true",
+        help="Enable transcription of voice and video messages."
+    )
+    parser.add_argument(
         "--no-stats",
         action="store_true",
         help="Disable statistics computation and printing."
@@ -283,6 +288,9 @@ def main():
 
     if args.no_mark_media:
         config["mark_media"] = False
+
+    config["transcribe_media"] = args.transcribe or config.get(
+        "transcribe_media", False)
 
     if args.anonymize or config.get("anonymize", False):
         print("[*] Anonymization enabled.")
