@@ -296,9 +296,9 @@ class MessageProcessor:
 
         transcription_cache = {}
         if self.media.config.get("transcribe_media", False):
-            files_to_process = self._collect_media_for_transcription(
-                source_messages)
-            if files_to_process:
+            if files_to_process := self._collect_media_for_transcription(
+                source_messages
+            ):
                 transcription_cache = self.media.batch_transcribe(
                     files_to_process)
 
