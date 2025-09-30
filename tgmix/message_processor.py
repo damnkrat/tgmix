@@ -265,8 +265,7 @@ class MessageProcessor:
             file_type = resolved_source.parent.name
             if file_type in (
                     "voice_messages", "round_video_messages", "video_files"):
-                paths_to_transcribe.update(
-                    {resolved_source: message["duration_seconds"]})
+                paths_to_transcribe[resolved_source] = message["duration_seconds"]
 
         return paths_to_transcribe
 
