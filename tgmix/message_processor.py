@@ -241,7 +241,7 @@ class MessageProcessor:
         """
         Проходит по всем сообщениям и собирает пути к файлам для транскрибации.
         """
-        paths_to_transcribe = dict()
+        paths_to_transcribe = {}
         for message in tqdm(messages, desc="Scanning media for transcription"):
             if not (media_type := self.media.detect(message)):
                 continue
