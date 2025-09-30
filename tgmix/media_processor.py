@@ -144,8 +144,7 @@ class Media:
 
         if self.config.get("transcribe_media") and can_be_transcribed:
             if resolved_source in transcription_cache:
-                transcribed_text = transcription_cache[resolved_source]
-                if transcribed_text:
+                if transcribed_text := transcription_cache[resolved_source]:
                     return (file_type.removesuffix("s").removesuffix(
                         "_file").removeprefix("round_"), transcribed_text)
 
