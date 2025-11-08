@@ -1,6 +1,6 @@
 # 💬 TGMix
 
-TGMix is a powerful tool that processes your Telegram chat export into a AI-friendly dataset. Perfect for feeding the full context of long and complex conversations to Large Language Models (LLMs) like Claude, Gemini, GPT-4o, and more. Inspired by Repomix.
+TGMix is a powerful tool that processes your Telegram chat export into an AI-friendly dataset. Perfect for feeding the full context of long and complex conversations to Large Language Models (LLMs) like Claude, Gemini, GPT-4o, and more. Inspired by Repomix.
 
 > **🛠️ Beta Version Note**
 >
@@ -13,8 +13,9 @@ TGMix is a powerful tool that processes your Telegram chat export into a AI-frie
 -   **Save Costs & Time**: Processing a chat history that's up to 3x smaller in token count directly translates to lower API costs for paid models (like GPT-4o and Claude 3 Opus) and significantly faster response times.
 -   **Fit More Data into Context**: The token reduction is crucial for fitting large chat histories into a model's limited context window — something that is frequently impossible with raw Telegram exports.
 -   **Higher Quality Analysis**: By stitching fragmented messages, you provide the LLM with a more natural and complete context. This prevents misinterpretations and leads to more accurate and insightful summaries, analyses, or role-playing sessions.
+-   **Efficient Output Format**: TGMix uses the TOON format instead of JSON. This provides a **30-60% token reduction**(as documentation says) over standard JSON, directly cutting API costs and speeding up LLM processing. Benchmarks also show that models **retrieve data more accurately** from TOON.
 -   **Flexible Anonymization**: Automatically mask sensitive data like phone numbers, emails, author names, and custom patterns to protect privacy before sharing chat data.
--   **Data for RAG & Fine-Tuning**: The clean, structured JSON output is a perfect dataset for advanced applications. Use it to build a knowledge base for Retrieval-Augmented Generation (RAG) or to fine-tune a custom model on a specific person's conversational style.
+-   **Data for RAG & Fine-Tuning**: The clean, structured output is a perfect dataset for advanced applications. Use it to build a knowledge base for Retrieval-Augmented Generation (RAG) or to fine-tune a custom model on a specific person's conversational style.
 
 ## Roadmap
 
@@ -25,7 +26,7 @@ The development of TGMix is planned in stages. Here is what's available now and 
 -   [x] **Significant Token Reduction**: By simplifying the structure and removing redundant metadata from the original Telegram export, TGMix **reduces the final token count by up to 3 times**.
 -   [x] **Message Stitching**: Automatically combines messages sent by the same user in quick succession into a single, coherent entry.
 -   [x] **Media Marking**: Uses **[MarkMyMedia-LLM](https://github.com/LaVashikk/MarkMyMedia-LLM)** to automatically add filenames to media like videos and voice messages, improving context for AI analysis.
--   [x] **AI-Ready JSON Output**: Produces a single, clean `tgmix_output.json` file with a simple structure, including a map of authors and fixed reply IDs.
+-   [x] **AI-Ready Toon Output**: Produces a single, clean `tgmix_output.toon.txt` file in the [TOON (Token-Oriented Object Notation)](https://github.com/toon-format/toon) format, which is more token-efficient than JSON and specifically designed for LLMs.
 -   [x] **Advanced Anonymization**: A flexible system for masking sensitive data.
 
 #### Planned for Future Releases
@@ -91,7 +92,7 @@ pip install -U git+https://github.com/damnkrat/tgmix.git
 #### Step 3: Use the Output
 
 Once finished, you will find:
--   `tgmix_output.json`: The final, processed JSON file ready for your LLM.
+-   `tgmix_output.toon.txt`: The final, processed file in Toon format, ready for your LLM.
 -   `tgmix_media/`: A new folder containing all processed and copied media files.
 
 ## Configuration
@@ -106,7 +107,7 @@ The core of the new functionality lies in the anonymization settings. Here is an
 {
   "export_json_file": "result.json",
   "media_output_dir": "tgmix_media",
-  "final_output_json": "tgmix_output.json",
+  "final_output_file": "tgmix_output.toon.txt",
   "anonymize": true,
   "default_phone_region": "RU",
   "mask_presets": {
@@ -128,7 +129,7 @@ The core of the new functionality lies in the anonymization settings. Here is an
 -   `"mask_presets"`: A dictionary of built-in, ready-to-use masking rules. The key is the preset name, and the value is the placeholder text that will replace the found data. Available presets are:
     -   `"phone"`: Finds and replaces phone numbers. It intelligently detects both international formats (e.g., `+1-541-754-3010`) and local formats based on the `"default_phone_region"` (e.g., `8 (999) 123-45-67`).
     -   `"email"`: Finds and replaces email addresses using a robust, tested regular expression.
-    -   `"authors"`: This is a special preset that anonymizes the authors themselves. It modifies the `author_map` in the final JSON, replacing the author's name with the provided template and a unique number (e.g., `[AUTHOR_1]`, `[AUTHOR_2]`).
+    -   `"authors"`: This is a special preset that anonymizes the authors themselves. It modifies the `author_map` in the final output, replacing the author's name with the provided template, and a unique number (e.g., `[AUTHOR_1]`, `[AUTHOR_2]`).
 -   `"mask_literals"`: A dictionary for replacing exact, case-insensitive phrases. The key is the phrase to find, and the value is its replacement. Perfect for redacting names, project titles, or other specific keywords.
 -   `"mask_regex"`: A dictionary for replacing content based on regular expressions. The key is the regex pattern, and the value is its replacement. This gives you the power to mask any custom data format, like ID numbers, bank accounts, or tracking codes.
     > **Important:** In JSON format, the backslash `\` is an escape character. Therefore, you must **escape your backslashes** in regex patterns. For example, to match a digit (`\d`), you must write it as `\\d` in the `tgmix_config.json` file.

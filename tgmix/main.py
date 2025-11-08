@@ -4,7 +4,8 @@ import re
 import shutil
 from pathlib import Path
 
-from ujson import JSONDecodeError, dump, loads
+from toon import encode
+from ujson import JSONDecodeError, loads
 
 from tgmix import __version__
 from tgmix.message_processor import MessageProcessor
@@ -109,30 +110,31 @@ def parse_cli_dict(rules_list: list[str] | None) -> dict:
 
 def run_processing(target_dir: Path, config: dict,
                    masking_rules: dict | None, do_anonymise: bool,
-                   do_confirm_deletion: bool) -> tuple[dict, dict]:
+                   do_confirm_deletion: bool) -> tuple[dict, dict, str]:
     """Main processing logic for the export."""
     export_json_path = target_dir / config['export_json_file']
     if not export_json_path.exists():
         print(f"[!] Error: '{config['export_json_file']}' not found"
               f" in {target_dir}")
-        return {}, {}
+        return {}, {}, ""
 
     media_dir = target_dir / config['media_output_dir']
     if media_dir.exists():
         if do_confirm_deletion and input(
                 f"\nMedia directory '{media_dir}' already exists.\n"
                 "Delete and continue? [Y/N]: ").lower() != "y":
-            return {}, {}
+            return {}, {}, ""
 
         print(f"[*] Cleaning up '{config['media_output_dir']}'...")
         shutil.rmtree(media_dir)
 
     media_dir.mkdir(exist_ok=True)
-    raw_chat = loads(open(export_json_path, encoding="utf-8").read())
+    raw_export = open(export_json_path, encoding="utf-8").read()
+    raw_chat = loads(raw_export)
 
     if not raw_chat.get("messages"):
         print("[!] Error: No messages found in the export.")
-        return {}, raw_chat
+        return {}, raw_chat, raw_export
 
     message_processor = MessageProcessor(
         target_dir, media_dir, config["mark_media"], masking_rules,
@@ -171,7 +173,7 @@ def run_processing(target_dir: Path, config: dict,
     processed_chat["author_map"] = author_map
     processed_chat["messages"] = stitched_messages
 
-    return processed_chat, raw_chat
+    return processed_chat, raw_chat, raw_export
 
 
 def handle_init(package_dir: Path) -> None:
@@ -310,23 +312,25 @@ def main():
         )
 
     print(f"--- Starting TGMix on directory: {target_directory} ---")
-    processed_chat, raw_chat = run_processing(
+    processed_chat, raw_chat, raw_export = run_processing(
         target_directory, config, masking_rules, args.anonymize,
         args.do_confirm_deletion)
 
     if not processed_chat:
         return
 
-    output_path = target_directory / config['final_output_json']
+    encoded_output = encode(processed_chat)
+    output_path = target_directory / config['final_output_file']
     with open(output_path, "w", encoding="utf-8") as file:
-        dump(processed_chat, file, ensure_ascii=False, indent=2)
+        file.write(encoded_output)
 
     if args.no_stats:
         return
     if not config.get("enable_stats", True):
         return
 
-    if not (stats := compute_chat_stats(processed_chat, raw_chat)):
+    if not (stats := compute_chat_stats(
+            processed_chat, raw_chat, raw_export, encoded_output)):
         print("[!] Error: Failed to compute statistics.")
         return
     print_stats(stats, config, args.anonymize)
