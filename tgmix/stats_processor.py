@@ -1,10 +1,11 @@
 # tgmix/stats_processor.py
 from rs_bpe.bpe import openai
+# Currently, official toon_format lib has not implemented encode() function
 from tqdm import tqdm
-from ujson import dumps
 
 
-def compute_chat_stats(chat: dict, raw_chat: dict) -> dict:
+def compute_chat_stats(chat: dict, raw_chat: dict,
+                       raw_export: str, encoded_output) -> dict:
     """Computes token, char, and other stats for the chat."""
     messages = chat.get("messages", [])
 
@@ -30,18 +31,10 @@ def compute_chat_stats(chat: dict, raw_chat: dict) -> dict:
             stats["media_count"] += len(message["media"])
 
     # Map author IDs to names for the final stats report
-    pbar = tqdm(total=2, desc="Dumping chats for stats")
-    chat_json = dumps(chat)
-    raw_chat_json = dumps(raw_chat)
-    pbar.update()
-    pbar.set_description("Counting tokens for files")
-    stats["raw_total_tokens"] = encoding.count(raw_chat_json)
-    stats["total_tokens"] = encoding.count(chat_json)
-    pbar.update()
-    pbar.set_description("Counting chars for files")
-    stats["raw_total_chars"] = len(raw_chat_json)
-    stats["total_chars"] = len(chat_json)
-    pbar.close()
+    stats["raw_total_tokens"] = encoding.count(raw_export)
+    stats["total_tokens_toon"] = encoding.count(encoded_output)
+    stats["raw_total_chars"] = len(raw_export)
+    stats["total_chars_toon"] = len(encoded_output)
 
     return stats
 
@@ -52,12 +45,12 @@ def print_stats(stats: dict, config: dict, anonymised: bool) -> None:
           "─────────────────────\n"
           f"Total messages: {stats['raw_total_messages']:,} "
           f"-> {stats['total_messages']:,}\n"
-          f"Output file tokens: {stats['raw_total_tokens']:,} "
-          f"-> {stats['total_tokens']:,}\n"
-          f"Total chars: {stats['raw_total_chars']:,} "
-          f"-> {stats['total_chars']:,}\n"
+          f"Output file tokens (OpenAI o200k): {stats['raw_total_tokens']:,}"
+          f" -> {stats['total_tokens_toon']:,}\n"
+          f"Total chars: {stats['raw_total_chars']:,}"
+          f" -> {stats['total_chars_toon']:,}\n"
           f"Media tokens: unaccounted\n"
-          f"Output file: {config['final_output_json']}\n"
+          f"Output file: {config['final_output_file']}\n"
           f"Anonymization: {'ON' if anonymised else 'OFF'}\n"
           "\n"
           "🎉 All Done!\n"

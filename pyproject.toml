@@ -10,6 +10,7 @@ dependencies = [
     "tqdm>=4.67.1",
     "ujson>=5.11.0",
     "MarkMyMedia>=1.1.0",
+    "python-toon>=0.1.3", # Currently, official toon_format lib has not implemented encode() function
 ]
 license = { file="LICENSE" }
 keywords = ["telegram", "chat", "export", "llm", "ai", "dataset", "nlp", "chatgpt", "gemini", "grok", "claude", "llama"]
